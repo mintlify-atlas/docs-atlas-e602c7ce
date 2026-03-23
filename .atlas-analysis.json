@@ -1,0 +1,114 @@
+{
+  "projectType": "saas",
+  "projectName": "ShadowBroker",
+  "projectDescription": "A real-time, multi-domain OSINT dashboard that aggregates live data from dozens of open-source intelligence feeds — aircraft, ships, satellites, conflict zones, earthquakes, and more — rendered on a unified dark-ops map interface.",
+  "theme": "aspen",
+  "primaryColor": "#00FF88",
+  "lightColor": "#00CC66",
+  "darkColor": "#003322",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart", "deployment/docker", "deployment/kubernetes"]
+          },
+          {
+            "group": "Configuration",
+            "pages": ["configuration/environment-variables", "configuration/api-keys", "configuration/news-feeds"]
+          },
+          {
+            "group": "Data Layers",
+            "pages": [
+              "layers/overview",
+              "layers/aviation",
+              "layers/maritime",
+              "layers/satellites",
+              "layers/geopolitics",
+              "layers/satellite-imagery",
+              "layers/sdr-radio",
+              "layers/surveillance",
+              "layers/environmental",
+              "layers/signal-intelligence"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": ["architecture/overview", "architecture/backend", "architecture/frontend", "architecture/performance"]
+          },
+          {
+            "group": "Self-Hosting",
+            "pages": ["self-hosting/portainer", "self-hosting/local-ais", "self-hosting/updating"]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["api/overview"]
+          },
+          {
+            "group": "Live Data",
+            "pages": ["api/live-data-fast", "api/live-data-slow", "api/refresh"]
+          },
+          {
+            "group": "Intelligence",
+            "pages": ["api/region-dossier", "api/sentinel2", "api/flight-route"]
+          },
+          {
+            "group": "Radio",
+            "pages": ["api/radio"]
+          },
+          {
+            "group": "AIS",
+            "pages": ["api/ais-feed", "api/viewport"]
+          },
+          {
+            "group": "Settings",
+            "pages": ["api/settings-api-keys", "api/settings-news-feeds"]
+          },
+          {
+            "group": "System",
+            "pages": ["api/health", "api/system-update"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Real-time aviation tracking — commercial, private, military aircraft via ADS-B",
+    "Maritime AIS vessel stream with 25,000+ ships via WebSocket",
+    "Orbital satellite tracking with SGP4 propagation and mission-type classification",
+    "GDELT-powered geopolitical conflict events and Ukraine frontline",
+    "GPS jamming zone detection via NAC-P degradation analysis",
+    "2,000+ live CCTV camera feeds from global traffic networks",
+    "NASA FIRMS fire hotspots and NOAA space weather monitoring",
+    "Right-click region dossier with Wikidata/Wikipedia intelligence",
+    "Sentinel-2 satellite imagery on-demand via Microsoft Planetary Computer",
+    "KiwiSDR public radio receiver network with embedded tuner",
+    "Internet outage monitoring via Georgia Tech IODA",
+    "Docker/Podman single-command deployment and Helm/Kubernetes support"
+  ],
+  "publicApiSurface": [
+    "GET /api/live-data/fast — fast-update layer data (flights, ships, satellites) with bbox filtering",
+    "GET /api/live-data/slow — slow-update layer data (news, earthquakes, fires) with bbox filtering",
+    "GET /api/health — service health and data source counts",
+    "GET /api/refresh — force a full data refresh",
+    "GET /api/region-dossier?lat=&lng= — country/city intelligence for a coordinate",
+    "GET /api/sentinel2/search?lat=&lng= — latest Sentinel-2 imagery for a point",
+    "GET /api/route/{callsign} — flight route origin/destination lookup",
+    "GET /api/radio/top — top Broadcastify radio feeds",
+    "GET /api/radio/nearest?lat=&lng= — nearest OpenMHz trunked radio system",
+    "POST /api/ais/feed — ingest AIS-catcher decoded vessel messages",
+    "POST /api/viewport — update map viewport bbox for AIS stream filtering",
+    "GET /api/settings/api-keys — list configured API keys (admin)",
+    "PUT /api/settings/api-keys — update an API key (admin)",
+    "GET /api/settings/news-feeds — get RSS feed configuration",
+    "PUT /api/settings/news-feeds — update RSS feed list (admin)",
+    "POST /api/system/update — perform self-update (admin)"
+  ]
+}
