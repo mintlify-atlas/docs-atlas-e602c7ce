@@ -26,7 +26,7 @@ Rate limit: **1 request per minute** per IP.
 The response body is the result object from `perform_update()`. Shape depends on outcome:
 
 <ResponseField name="status" type="string" required>
-  `"success"` if the update completed and a restart is pending. `"error"` if the update failed.
+  `"ok"` if the update completed and a restart is pending. `"error"` if the update failed.
 </ResponseField>
 
 <ResponseField name="message" type="string">
@@ -38,7 +38,11 @@ The response body is the result object from `perform_update()`. Shape depends on
 </ResponseField>
 
 <ResponseField name="backup_path" type="string">
-  Absolute path to the backup directory created before the update was applied.
+  Absolute path to the backup ZIP file created from the current `backend/` and `frontend/` directories before the update was applied. Stored in a temporary directory.
+</ResponseField>
+
+<ResponseField name="files_updated" type="number">
+  Number of files copied from the update archive.
 </ResponseField>
 
 <Note>
@@ -56,10 +60,11 @@ curl -X POST http://localhost:8000/api/system/update \
 
 ```json 200 — update applied
 {
-  "status": "success",
-  "message": "Update applied. Restarting in 2 seconds.",
-  "version": "1.4.2",
-  "backup_path": "/app/backups/shadowbroker_backup_20240115_120000"
+  "status": "ok",
+  "version": "v1.4.2",
+  "files_updated": 142,
+  "backup_path": "/tmp/sb_update_abc123/backup_20240115_120000.zip",
+  "message": "Updated to v1.4.2 — 142 files replaced. Restarting..."
 }
 ```
 

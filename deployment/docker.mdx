@@ -9,7 +9,7 @@ ShadowBroker ships with a `docker-compose.yml` that builds both the backend and 
 
 - **Docker** (with the Compose plugin) or **Podman** with a compatible compose provider
 - **Git** (to clone the repository)
-- An API key from [aisstream.io](https://aisstream.io) — required for live maritime vessel tracking
+- An API key from [aisstream.io](https://aisstream.io) — strongly recommended for live maritime vessel tracking (the ships layer is empty without it)
 
 ## Quick start
 
@@ -44,9 +44,9 @@ ShadowBroker ships with a `docker-compose.yml` that builds both the backend and 
         LTA_ACCOUNT_KEY=
         ```
 
-        <Warning>
-          `AIS_API_KEY` is required. Without it, live vessel tracking will not function. Get a free key at [aisstream.io](https://aisstream.io).
-        </Warning>
+        <Tip>
+          `AIS_API_KEY` is strongly recommended. Without it the ships layer will be empty, but all other layers still work. Get a free key at [aisstream.io](https://aisstream.io).
+        </Tip>
       </Step>
 
       <Step title="Start the containers">
@@ -159,11 +159,12 @@ volumes:
 
 | Variable | Required | Description |
 |---|---|---|
-| `AIS_API_KEY` | Yes | Maritime vessel tracking via [aisstream.io](https://aisstream.io) |
+| `AIS_API_KEY` | No (strongly recommended) | Maritime vessel tracking via [aisstream.io](https://aisstream.io). Ships layer is empty without it. |
 | `OPENSKY_CLIENT_ID` | No | OAuth2 client ID for higher flight data rate limits |
 | `OPENSKY_CLIENT_SECRET` | No | OAuth2 secret, paired with `OPENSKY_CLIENT_ID` |
 | `LTA_ACCOUNT_KEY` | No | Singapore LTA CCTV cameras |
 | `CORS_ORIGINS` | No | Comma-separated list of allowed CORS origins. Auto-detects LAN IPs if empty. |
+| `ADMIN_KEY` | No (required in production) | Protects `/api/settings/*` and `/api/system/update` endpoints. Unprotected if unset. |
 
 ### Frontend
 

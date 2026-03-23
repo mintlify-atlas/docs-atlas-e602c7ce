@@ -145,7 +145,7 @@ def require_admin(request: Request):
     if not _ADMIN_KEY:
         return  # No key set — allow all (local dev)
     if request.headers.get("X-Admin-Key") != _ADMIN_KEY:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Forbidden — invalid or missing admin key")
 ```
 
 Set `ADMIN_KEY` in `.env` or via Docker Swarm secrets for production deployments. If the variable is unset, a warning is logged at startup and endpoints remain open — safe for local development, not for public exposure.

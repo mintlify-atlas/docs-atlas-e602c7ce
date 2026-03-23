@@ -16,25 +16,20 @@ cp backend/.env.example backend/.env
 
 Then fill in your values.
 
-### Required
-
-<Warning>
-  Without `AIS_API_KEY` the ships layer will be empty. The backend still starts, but no vessel data will appear on the map.
-</Warning>
-
-| Variable | Description | Default |
-|---|---|---|
-| `AIS_API_KEY` | WebSocket API key for [AISStream.io](https://aisstream.io/) real-time vessel tracking. The ships layer is empty without it. | — |
-
 ### Optional — data sources
 
-These variables unlock additional data layers. The backend starts and all other layers work fine without them.
+All backend variables are optional. The backend starts cleanly without any of them, but missing keys degrade specific data layers. A startup warning is logged for each missing key.
+
+<Warning>
+  Although no variables are technically required for the backend to start, `AIS_API_KEY` is essential for the ships layer. Without it the maritime layer will be empty.
+</Warning>
 
 | Variable | Description | Effect if missing |
 |---|---|---|
-| `OPENSKY_CLIENT_ID` | OAuth2 client ID for [OpenSky Network](https://opensky-network.org/). Provides flight gap-fill in Africa, Asia, and Latin America. | Flight coverage is reduced in areas not served by ADS-B Exchange. |
+| `AIS_API_KEY` | WebSocket API key for [AISStream.io](https://aisstream.io/) real-time vessel tracking. | Ships layer is empty. |
+| `OPENSKY_CLIENT_ID` | OAuth2 client ID for [OpenSky Network](https://opensky-network.org/). Provides flight gap-fill in Africa, Asia, and Latin America. | Flight coverage reduced outside ADS-B Exchange range. |
 | `OPENSKY_CLIENT_SECRET` | OAuth2 client secret paired with `OPENSKY_CLIENT_ID`. Both must be set together. | Same as above. |
-| `LTA_ACCOUNT_KEY` | Account key for Singapore's [Land Transport Authority](https://datamall.lta.gov.sg/) API. Enables the CCTV traffic camera layer for Singapore. | Singapore CCTV layer is empty. |
+| `LTA_ACCOUNT_KEY` | Account key for Singapore's [Land Transport Authority](https://datamall.lta.gov.sg/) API. Enables the Singapore CCTV traffic camera layer. | Singapore CCTV layer is empty. |
 
 ### Optional — security and networking
 
@@ -45,11 +40,11 @@ These variables unlock additional data layers. The backend starts and all other 
 
 ## Frontend variables
 
-The frontend reads one variable at **runtime** — it does not need to be baked in at build time. Set it in the root `.env` file (used by Docker Compose) or in the container's environment directly.
+The frontend reads one variable at **runtime** — it does not need to be baked in at build time (it is not a `NEXT_PUBLIC_*` build-time variable). Set it in the root `.env` file used by Docker Compose, or in the container's environment directly.
 
 | Variable | Description | Default |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | Full URL of the backend API that the browser connects to (e.g., `http://192.168.1.50:8000`). Leave blank for auto-detect on the same host. | Auto-detect |
+| `BACKEND_URL` | Full URL of the backend that the Next.js server uses to proxy `/api/*` requests (e.g., `http://backend:8000` in Docker, `http://192.168.1.50:8000` for a remote host). The browser only ever talks to the frontend on port 3000 — port 8000 does not need to be exposed externally. | `http://backend:8000` (Docker internal) / `http://localhost:8000` (local dev) |
 
 ## Setting variables
 
@@ -91,10 +86,16 @@ services:
 
 ### At runtime (frontend)
 
-Because `NEXT_PUBLIC_API_URL` is read at runtime, you can update it without rebuilding the frontend image:
+Because `BACKEND_URL` is a runtime variable (not baked in at build time), you can update it without rebuilding the frontend image:
 
 ```bash
-docker compose up -d -e NEXT_PUBLIC_API_URL=http://192.168.1.50:8000
+BACKEND_URL=http://192.168.1.50:8000 docker compose up -d
+```
+
+Or set it in the root `.env` file next to `docker-compose.yml`:
+
+```bash .env
+BACKEND_URL=http://myserver.com:9096
 ```
 
 ## Docker Swarm secrets
@@ -142,9 +143,13 @@ echo "your-admin-key" | docker secret create admin_key -
 
 ## Startup validation
 
-At startup, the backend calls `validate_env()` and logs the status of every variable:
+At startup, the backend calls `validate_env()` and logs the status of every variable. There are no hard-required variables — the app always starts — but two severity levels are used:
 
-- **Critical warning** — `ADMIN_KEY` is missing: logged at `CRITICAL` level. The app still starts, but sensitive endpoints are unprotected.
-- **Optional warning** — `AIS_API_KEY`, `OPENSKY_CLIENT_ID`, `OPENSKY_CLIENT_SECRET`, or `LTA_ACCOUNT_KEY` is missing: logged at `WARNING` level. The affected data layer will be empty.
+- **Critical warning** — `ADMIN_KEY` is missing: logged at `CRITICAL` level. The backend starts, but sensitive endpoints (`/api/settings/*`, `/api/system/update`) are unprotected and open to any request.
+- **Optional warning** — `AIS_API_KEY`, `OPENSKY_CLIENT_ID`, `OPENSKY_CLIENT_SECRET`, or `LTA_ACCOUNT_KEY` is missing: logged at `WARNING` level. The affected data layer will be empty or reduced.
 
-Check the backend logs on first boot to confirm all variables are loaded correctly.
+Check the backend logs on first boot to confirm all variables are loaded correctly:
+
+```bash
+docker compose logs backend | grep -E "(CRITICAL|WARNING|✅)"
+```

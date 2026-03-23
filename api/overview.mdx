@@ -15,8 +15,10 @@ You can override this with the `BACKEND_URL` environment variable in the fronten
 
 | Method | Path | Description | Rate limit |
 |--------|------|-------------|------------|
+| `GET` | `/api/live-data` | Full combined dataset (all layers, no bbox filtering) | 120/min |
 | `GET` | `/api/live-data/fast` | Moving entities: flights, ships, satellites, UAVs, GPS jamming, CCTV | 120/min |
 | `GET` | `/api/live-data/slow` | Contextual data: news, earthquakes, weather, stocks, frontlines | 60/min |
+| `GET` | `/api/debug-latest` | Returns the list of available data keys in the cache | 30/min |
 | `GET` | `/api/refresh` | Trigger a background data refresh | 2/min |
 | `GET` | `/api/health` | Service health check with per-source counts and uptime | 30/min |
 | `GET` | `/api/region-dossier` | Country profile + Wikipedia summary for a lat/lng point | 30/min |

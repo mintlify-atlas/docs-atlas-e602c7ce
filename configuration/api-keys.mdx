@@ -10,9 +10,9 @@ ShadowBroker aggregates data from many sources. Most require no credentials, but
 
 | Service | Key required | Data layer | Free tier |
 |---|---|---|---|
-| [AISStream.io](https://aisstream.io/) | Yes — `AIS_API_KEY` | Real-time vessel positions (ships layer) | Yes |
-| [OpenSky Network](https://opensky-network.org/) | Yes — `OPENSKY_CLIENT_ID` + `OPENSKY_CLIENT_SECRET` | Flight gap-fill in Africa / Asia / LatAm | Yes (400 req/day) |
-| [LTA DataMall](https://datamall.lta.gov.sg/) | Yes — `LTA_ACCOUNT_KEY` | Singapore CCTV traffic cameras | Yes |
+| [AISStream.io](https://aisstream.io/) | Optional — `AIS_API_KEY` | Real-time vessel positions (ships layer empty without it) | Yes |
+| [OpenSky Network](https://opensky-network.org/) | Optional — `OPENSKY_CLIENT_ID` + `OPENSKY_CLIENT_SECRET` | Flight gap-fill in Africa / Asia / LatAm | Yes (400 req/day) |
+| [LTA DataMall](https://datamall.lta.gov.sg/) | Optional — `LTA_ACCOUNT_KEY` | Singapore CCTV traffic cameras | Yes |
 | ADS-B Exchange (adsb.lol) | No | Global commercial, military, and private flights | — |
 | USGS Earthquakes | No | Real-time earthquake feed | — |
 | CelesTrak | No | Satellite orbital elements (TLEs) | — |
@@ -152,7 +152,6 @@ Valid `env_key` values: `AIS_API_KEY`, `OPENSKY_CLIENT_ID`, `OPENSKY_CLIENT_SECR
 
 - `GET /api/settings/api-keys`
 - `PUT /api/settings/api-keys`
-- `GET /api/settings/news-feeds` (write operations)
 - `PUT /api/settings/news-feeds`
 - `POST /api/settings/news-feeds/reset`
 - `POST /api/system/update`
