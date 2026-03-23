@@ -1,0 +1,159 @@
+---
+title: 'API key settings'
+description: 'GET and PUT /api/settings/api-keys — view and update the API key registry. Requires X-Admin-Key authentication.'
+---
+
+Two endpoints manage the external API key registry. Both require the `X-Admin-Key` header.
+
+<Warning>
+These endpoints are protected by `X-Admin-Key`. If `ADMIN_KEY` is not set in your environment, they are unprotected. Always configure `ADMIN_KEY` in production.
+</Warning>
+
+## GET /api/settings/api-keys
+
+Returns the full API registry with obfuscated key values (first 4 characters shown, remainder masked).
+
+<Info>
+Rate limit: **30 requests per minute** per IP.
+</Info>
+
+### Headers
+
+<ParamField header="X-Admin-Key" type="string" required>
+  Admin authentication key matching the `ADMIN_KEY` environment variable.
+</ParamField>
+
+### Response
+
+An array of API registry entries:
+
+<ResponseField name="id" type="string">Internal registry ID.</ResponseField>
+<ResponseField name="name" type="string">Human-readable service name.</ResponseField>
+<ResponseField name="description" type="string">Description of what the API provides.</ResponseField>
+<ResponseField name="category" type="string">Service category (e.g. `"Aviation"`, `"Maritime"`, `"Space"`).</ResponseField>
+<ResponseField name="url" type="string">Service homepage URL.</ResponseField>
+<ResponseField name="required" type="boolean">Whether this key is required for core functionality.</ResponseField>
+<ResponseField name="has_key" type="boolean">Whether this service uses an API key (some are keyless).</ResponseField>
+<ResponseField name="env_key" type="string">The environment variable name for this key (e.g. `"AIS_API_KEY"`).</ResponseField>
+<ResponseField name="value_obfuscated" type="string">Masked key value showing only the first 4 characters. `null` for keyless services.</ResponseField>
+<ResponseField name="is_set" type="boolean">Whether the key has a non-empty value in the current environment.</ResponseField>
+
+### Example
+
+```bash
+curl -H "X-Admin-Key: your-secret-key" \
+  http://localhost:8000/api/settings/api-keys
+```
+
+<ResponseExample>
+
+```json 200
+[
+  {
+    "id": "ais_api_key",
+    "name": "AIS Stream",
+    "description": "WebSocket API key for real-time AIS vessel tracking data worldwide.",
+    "category": "Maritime",
+    "url": "https://aisstream.io/",
+    "required": true,
+    "has_key": true,
+    "env_key": "AIS_API_KEY",
+    "value_obfuscated": "abcd••••••••",
+    "is_set": true
+  },
+  {
+    "id": "usgs_earthquakes",
+    "name": "USGS Earthquake Hazards",
+    "description": "Real-time earthquake data. No key required.",
+    "category": "Geophysical",
+    "url": "https://earthquake.usgs.gov/",
+    "required": false,
+    "has_key": false,
+    "env_key": null,
+    "value_obfuscated": null,
+    "is_set": false
+  }
+]
+```
+
+```json 403
+{
+  "detail": "Forbidden — invalid or missing admin key"
+}
+```
+
+</ResponseExample>
+
+---
+
+## PUT /api/settings/api-keys
+
+Updates a single API key in the `.env` file and in the running process environment. Changes take effect immediately — no restart required. Call `GET /api/refresh` afterwards to re-fetch data with the new key.
+
+<Info>
+Rate limit: **10 requests per minute** per IP.
+</Info>
+
+### Headers
+
+<ParamField header="X-Admin-Key" type="string" required>
+  Admin authentication key.
+</ParamField>
+
+### Request body
+
+<ParamField body="env_key" type="string" required>
+  The environment variable to update. Must be one of the following values:
+
+  | `env_key` | Service |
+  |-----------|----------|
+  | `AIS_API_KEY` | AIS Stream (aisstream.io) |
+  | `OPENSKY_CLIENT_ID` | OpenSky Network OAuth2 client ID |
+  | `OPENSKY_CLIENT_SECRET` | OpenSky Network OAuth2 client secret |
+  | `LTA_ACCOUNT_KEY` | LTA Singapore (traffic cameras) |
+</ParamField>
+
+<ParamField body="value" type="string" required>
+  New key value. Must not contain newline characters.
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string" required>
+  `"updated"` on success, `"error"` on failure.
+</ResponseField>
+
+<ResponseField name="env_key" type="string">
+  The key that was updated. Present on success.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Error description. Present only when `status` is `"error"`.
+</ResponseField>
+
+### Example
+
+```bash
+curl -X PUT http://localhost:8000/api/settings/api-keys \
+  -H "X-Admin-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"env_key": "AIS_API_KEY", "value": "your-new-api-key"}'
+```
+
+<ResponseExample>
+
+```json 200 — success
+{
+  "status": "updated",
+  "env_key": "AIS_API_KEY"
+}
+```
+
+```json 200 — error
+{
+  "status": "error",
+  "message": "Failed to update .env file"
+}
+```
+
+</ResponseExample>

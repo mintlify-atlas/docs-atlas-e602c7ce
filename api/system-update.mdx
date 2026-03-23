@@ -1,0 +1,79 @@
+---
+title: 'System update'
+description: 'POST /api/system/update — download and apply the latest ShadowBroker release. Requires X-Admin-Key. Server restarts automatically.'
+---
+
+`POST /api/system/update`
+
+Triggers a self-update: downloads the latest release archive, backs up the current installation, extracts the update in place, and schedules a server restart. The response is returned before the restart occurs.
+
+<Warning>
+The server restarts **2 seconds after this endpoint responds**. All in-flight connections will be dropped. The AIS stream, scheduler, and carrier tracker restart automatically on the next boot.
+</Warning>
+
+<Info>
+Rate limit: **1 request per minute** per IP.
+</Info>
+
+## Authentication
+
+<ParamField header="X-Admin-Key" type="string" required>
+  Admin authentication key matching the `ADMIN_KEY` environment variable.
+</ParamField>
+
+## Response
+
+The response body is the result object from `perform_update()`. Shape depends on outcome:
+
+<ResponseField name="status" type="string" required>
+  `"success"` if the update completed and a restart is pending. `"error"` if the update failed.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable description of what happened.
+</ResponseField>
+
+<ResponseField name="version" type="string">
+  The version that was installed, if available.
+</ResponseField>
+
+<ResponseField name="backup_path" type="string">
+  Absolute path to the backup directory created before the update was applied.
+</ResponseField>
+
+<Note>
+On failure the endpoint returns `HTTP 500` and does **not** schedule a restart. The existing installation is unmodified.
+</Note>
+
+## Example
+
+```bash
+curl -X POST http://localhost:8000/api/system/update \
+  -H "X-Admin-Key: your-secret-key"
+```
+
+<ResponseExample>
+
+```json 200 — update applied
+{
+  "status": "success",
+  "message": "Update applied. Restarting in 2 seconds.",
+  "version": "1.4.2",
+  "backup_path": "/app/backups/shadowbroker_backup_20240115_120000"
+}
+```
+
+```json 500 — update failed
+{
+  "status": "error",
+  "message": "Failed to download release: connection timeout"
+}
+```
+
+```json 403 — unauthorized
+{
+  "detail": "Forbidden — invalid or missing admin key"
+}
+```
+
+</ResponseExample>

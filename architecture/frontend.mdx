@@ -1,0 +1,209 @@
+---
+title: Frontend architecture
+description: Next.js app structure, MapLibre GL map, component layout, and API proxy pattern
+---
+
+The frontend is a **Next.js 14** application using the App Router. It renders a full-screen WebGL map with a dark-ops HUD overlay, polls the backend for live data, and manages all layer state in a single top-level component.
+
+## App structure
+
+```
+frontend/src/
+├── app/
+│   ├── page.tsx                    # Root dashboard — state, polling, layout
+│   └── api/[...path]/route.ts      # API proxy catch-all route
+├── components/
+│   ├── MaplibreViewer.tsx           # Core map — 2,000+ lines, all GeoJSON layers
+│   ├── NewsFeed.tsx                 # SIGINT feed + entity detail panels
+│   ├── WorldviewLeftPanel.tsx       # Data layer toggles
+│   ├── WorldviewRightPanel.tsx      # Search + filter sidebar
+│   ├── FilterPanel.tsx              # Basic layer filters
+│   ├── AdvancedFilterModal.tsx      # Airport/country/owner filtering
+│   ├── MapLegend.tsx                # Dynamic legend with all icons
+│   ├── MarketsPanel.tsx             # Global financial markets ticker
+│   ├── RadioInterceptPanel.tsx      # Scanner-style radio panel
+│   ├── FindLocateBar.tsx            # Search and fly-to bar
+│   ├── SettingsPanel.tsx            # API keys + news feed manager
+│   ├── ScaleBar.tsx                 # Map scale indicator
+│   ├── ErrorBoundary.tsx            # Per-panel crash recovery
+│   ├── WikiImage.tsx                # Wikipedia image fetcher
+│   ├── ChangelogModal.tsx           # Version changelog popup
+│   └── OnboardingModal.tsx          # First-run onboarding
+├── hooks/
+│   ├── useDataPolling.ts            # Fast/slow polling with ETag support
+│   ├── useReverseGeocode.ts         # Mouse-position geocoding
+│   └── useRegionDossier.ts          # Right-click dossier handler
+└── lib/
+    ├── DashboardDataContext.tsx      # React context for data sharing
+    └── constants.ts                 # Polling intervals, animation timing
+```
+
+## API proxy pattern
+
+The Next.js server acts as a transparent proxy for all `/api/*` requests. The catch-all route at `src/app/api/[...path]/route.ts` reads `BACKEND_URL` at **request time** and forwards the call:
+
+```
+browser  →  Next.js server (:3000)  →  FastAPI backend (:8000)
+              reads BACKEND_URL
+              at request time
+```
+
+This means:
+- The browser only ever talks to port 3000. Port 8000 does not need to be exposed.
+- `BACKEND_URL` is a **runtime** environment variable. Changing it in Docker Compose or Portainer does not require rebuilding the image.
+- Local dev without Docker uses `BACKEND_URL=http://localhost:8000` by default.
+
+From `next.config.ts`:
+
+```ts
+// /api/* requests are proxied to the backend by the catch-all route handler at
+// src/app/api/[...path]/route.ts, which reads BACKEND_URL at request time.
+// Do NOT add rewrites for /api/* here — next.config is evaluated at build time,
+// so any URL baked in here ignores the runtime BACKEND_URL env var.
+
+const nextConfig: NextConfig = {
+  transpilePackages: ['react-map-gl', 'mapbox-gl', 'maplibre-gl'],
+  output: "standalone",
+};
+```
+
+## Data polling
+
+Polling logic lives in `src/hooks/useDataPolling.ts`. It maintains two independent timer loops — one for the fast endpoint and one for the slow endpoint — and merges their responses into a shared `dataRef`:
+
+```ts
+export function useDataPolling() {
+  const dataRef = useRef<any>({});
+  const fastEtag = useRef<string | null>(null);
+  const slowEtag = useRef<string | null>(null);
+
+  useEffect(() => {
+    let hasData = false;
+
+    const fetchFastData = async () => {
+      const headers: Record<string, string> = {};
+      if (fastEtag.current) headers['If-None-Match'] = fastEtag.current;
+      const res = await fetch(`${API_BASE}/api/live-data/fast`, { headers });
+      if (res.status === 304) { scheduleNext('fast'); return; } // unchanged
+      fastEtag.current = res.headers.get('etag');
+      const json = await res.json();
+      dataRef.current = { ...dataRef.current, ...json };
+      setDataVersion(v => v + 1);
+    };
+
+    const scheduleNext = (tier: 'fast' | 'slow') => {
+      if (tier === 'fast') {
+        const delay = hasData ? 15000 : 3000; // 3s startup → 15s steady
+        fastTimerId = setTimeout(fetchFastData, delay);
+      } else {
+        const delay = hasData ? 120000 : 5000; // 5s startup → 120s steady
+        slowTimerId = setTimeout(fetchSlowData, delay);
+      }
+    };
+  }, []); // empty deps — loop never restarts on re-render
+}
+```
+
+| Tier | Startup retry | Steady state | Endpoint |
+|---|---|---|---|
+| Fast | 3s | 15s | `/api/live-data/fast` |
+| Slow | 5s | 120s | `/api/live-data/slow` |
+
+<Note>
+  The `useEffect` dependency array is intentionally empty. This matches the proven GitHub polling pattern — the loop starts once and never restarts in response to prop or state changes.
+</Note>
+
+## MaplibreViewer
+
+`MaplibreViewer.tsx` (~2,500 lines) is the core rendering component. It wraps `react-map-gl/maplibre` and manages every GeoJSON data source on the map.
+
+The component is loaded with `next/dynamic` and `ssr: false` to prevent `window is not defined` errors during server-side rendering:
+
+```ts
+const MaplibreViewer = dynamic(
+  () => import('@/components/MaplibreViewer'),
+  { ssr: false }
+);
+```
+
+Key responsibilities:
+
+- **Viewport bounds tracking** — computes map bounds on every move and writes them to a `viewBoundsRef` used by polling hooks for server-side bbox filtering.
+- **GeoJSON builders** — dedicated builder functions (`buildFlightLayerGeoJSON`, `buildShipsGeoJSON`, `buildSatellitesGeoJSON`, etc.) convert raw API data into MapLibre-compatible FeatureCollections.
+- **Imperative source updates** — high-frequency layers (flights, satellites, fires) call `map.getSource(id).setData(geojson)` directly, bypassing React reconciliation entirely.
+- **Position interpolation** — a `useInterpolation` hook animates positions between data refreshes using a 10-second tick.
+- **Viewport culling** — an `inView(lat, lng)` helper filters features to those within the current map bounds plus a 20% buffer before building GeoJSON.
+- **Solar terminator** — a night polygon is recomputed every 60 seconds from the current UTC time.
+
+## HUD layout
+
+`page.tsx` arranges the map and panels in a fixed full-screen layout:
+
+```
+┌─────────────────────────────────────────┐
+│  [ShadowBroker header]          [RTX]   │  ← z-200
+├──────────┬──────────────────┬───────────┤
+│          │                  │           │
+│  Left    │   MapLibre GL    │  Right    │
+│  Panel   │   (WebGL map)    │  Panel    │
+│ (layers) │                  │ (intel)   │
+│          │                  │           │
+├──────────┴──────────────────┴───────────┤
+│  [Scale] [LOCATE bar] [Coords] [STYLE]  │  ← z-200
+└─────────────────────────────────────────┘
+```
+
+Both sidebars slide off their respective edges using Framer Motion spring animations and can be collapsed independently. The map fills the full viewport at all times.
+
+## Key components
+
+<CardGroup cols={2}>
+  <Card title="WorldviewLeftPanel" icon="layers">
+    Vertical list of toggleable data layers. Each toggle fires `setActiveLayers` in `page.tsx`, which flows down to `MaplibreViewer` as a prop. Also hosts the NASA GIBS date slider and opacity control.
+  </Card>
+  <Card title="NewsFeed" icon="newspaper">
+    Displays the aggregated RSS intel feed. When a flight, ship, or map entity is selected, it switches to a detail view showing entity metadata, Wikipedia images, and GDELT events.
+  </Card>
+  <Card title="FindLocateBar" icon="search">
+    Searches flights, ships, and satellites by callsign or name. Accepts raw coordinates (`31.8, 34.8`) or place names geocoded via OSM Nominatim. Selecting a result calls `flyTo` on the map.
+  </Card>
+  <Card title="RadioInterceptPanel" icon="radio">
+    Scanner-style panel for Broadcastify and OpenMHz feeds. Supports "Eavesdrop Mode" — clicking the map finds the nearest radio system to that location.
+  </Card>
+  <Card title="MarketsPanel" icon="trending-up">
+    Live financial market indices (defense stocks, oil prices). Minimizable. Data comes from the slow endpoint's `stocks` and `oil` fields.
+  </Card>
+  <Card title="FilterPanel" icon="filter">
+    Basic layer filters (airline, country, aircraft type). `AdvancedFilterModal` extends this with airport, owner, and registration prefix filtering.
+  </Card>
+  <Card title="SettingsPanel" icon="settings">
+    Manages API keys and the customizable news feed list (up to 20 RSS sources with priority weights 1–5). Changes are persisted to the backend via `PUT /api/settings/*`.
+  </Card>
+  <Card title="ErrorBoundary" icon="shield">
+    Each major panel is wrapped in an `ErrorBoundary` that catches render errors and shows a fallback UI without crashing the rest of the dashboard.
+  </Card>
+</CardGroup>
+
+## MapLibre GL layers
+
+The map renders the following named source/layer pairs:
+
+| Layer | Type | Clustering |
+|---|---|---|
+| Commercial flights | Symbol (SVG icons) | No |
+| Military flights | Symbol | No |
+| Private flights / jets | Symbol | No |
+| Satellites | Symbol | No |
+| AIS ships | Symbol | Yes (MapLibre cluster) |
+| CCTV cameras | Symbol | Yes |
+| Earthquakes | Circle + label | Yes |
+| GPS jamming zones | Fill rectangle | No |
+| Fire hotspots | Symbol | Yes |
+| GDELT incidents | Symbol | No |
+| Ukraine frontline | Line + fill | No |
+| KiwiSDR receivers | Symbol | Yes |
+| Internet outages | Circle | No |
+| Data centers | Symbol | Yes |
+| Day/night cycle | Fill (polygon) | No |
+| NASA GIBS imagery | Raster tile | No |
+| Esri satellite imagery | Raster tile | No |

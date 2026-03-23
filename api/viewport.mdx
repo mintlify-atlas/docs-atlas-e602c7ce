@@ -1,0 +1,64 @@
+---
+title: 'Viewport'
+description: 'POST /api/viewport — update the map viewport bounds to dynamically restrict the AIS stream to visible vessels.'
+---
+
+`POST /api/viewport`
+
+Sends the current map viewport bounds to the backend, which uses them to filter the AIS WebSocket stream to vessels in the visible area. This reduces memory and CPU overhead when the map is zoomed in on a small region.
+
+<Info>
+Rate limit: **60 requests per minute** per IP.
+</Info>
+
+## How it works
+
+The frontend calls this endpoint automatically on every map pan or zoom event. The backend applies a **10% padding** around the provided bounds before passing them to the AIS stream filter, so vessels don't abruptly disappear at the exact viewport edge.
+
+For example, if the map shows latitudes 48–50°N, the backend filters for vessels between approximately 47.8–50.2°N.
+
+<Note>
+This endpoint is called automatically by the ShadowBroker frontend. You only need to call it manually if you are building a custom client.
+</Note>
+
+## Request body
+
+<ParamField body="s" type="number" required>
+  South bound of the viewport (latitude, −90 to 90).
+</ParamField>
+
+<ParamField body="w" type="number" required>
+  West bound of the viewport (longitude, −180 to 180).
+</ParamField>
+
+<ParamField body="n" type="number" required>
+  North bound of the viewport (latitude, −90 to 90).
+</ParamField>
+
+<ParamField body="e" type="number" required>
+  East bound of the viewport (longitude, −180 to 180).
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string" required>
+  Always `"ok"`.
+</ResponseField>
+
+## Example
+
+```bash
+curl -X POST http://localhost:8000/api/viewport \
+  -H "Content-Type: application/json" \
+  -d '{"s": 48.5, "w": 2.0, "n": 49.5, "e": 3.5}'
+```
+
+<ResponseExample>
+
+```json 200
+{
+  "status": "ok"
+}
+```
+
+</ResponseExample>

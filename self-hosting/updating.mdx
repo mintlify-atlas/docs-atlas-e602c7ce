@@ -1,0 +1,130 @@
+---
+title: "Updating ShadowBroker"
+description: "How to pull the latest code and rebuild your containers on Linux, macOS, and Windows."
+---
+
+<Warning>
+  **Coming from v0.9.5 or older?** You must pull the new code and fully rebuild your containers. The v0.9.5 release introduced significant changes to data layers and the backend pipeline. Running `git pull` alone without rebuilding will leave you on stale images. Follow the full procedure below.
+</Warning>
+
+## Standard update procedure
+
+<Tabs>
+  <Tab title="Linux / macOS">
+    <Steps>
+      <Step title="Pull the latest code">
+        ```bash
+        git pull origin main
+        ```
+      </Step>
+      <Step title="Stop the running containers">
+        ```bash
+        ./compose.sh down
+        ```
+
+        `compose.sh` auto-detects `docker compose`, `docker-compose`, `podman compose`, and `podman-compose`. If both Docker and Podman are installed, force a specific engine with `./compose.sh --engine podman down`.
+      </Step>
+      <Step title="Rebuild and restart">
+        ```bash
+        ./compose.sh up --build -d
+        ```
+
+        The `--build` flag forces Docker to rebuild both images from the updated source code before starting the containers.
+      </Step>
+      <Step title="Verify the update">
+        Open `http://localhost:3000`. The dashboard should reflect the latest changes. Check the changelog modal in the dashboard UI to confirm the version.
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="Windows">
+    Windows handles shell scripts differently. Use one of the two methods below.
+
+    <Steps>
+      <Step title="Pull the latest code">
+        Open Command Prompt, PowerShell, or Windows Terminal in the project directory:
+
+        ```bat
+        git pull origin main
+        ```
+      </Step>
+      <Step title="Stop and rebuild the containers">
+        **Method A — direct Docker commands (recommended for CMD, PowerShell, Windows Terminal):**
+
+        ```bat
+        docker compose down
+        docker compose up --build -d
+        ```
+
+        **Method B — using the helper script (requires Git Bash):**
+
+        Right-click the project folder and select **Open Git Bash here**, then run:
+
+        ```bash
+        ./compose.sh down
+        ./compose.sh up --build -d
+        ```
+      </Step>
+      <Step title="Verify the update">
+        Open `http://localhost:3000` in your browser. Check the changelog modal to confirm the new version is running.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Troubleshooting: stuck on the old version
+
+If the dashboard still shows old behavior or data after updating, Docker may be using a cached build layer.
+
+**Clear the build cache and force a full rebuild:**
+
+```bash
+docker compose build --no-cache
+```
+
+**Remove dangling images from previous builds:**
+
+```bash
+docker image prune -f
+```
+
+**Inspect backend logs for errors:**
+
+```bash
+# Linux / macOS
+./compose.sh logs -f backend
+
+# Windows (CMD or PowerShell)
+docker compose logs -f backend
+```
+
+Look for startup errors, import failures, or data-fetch exceptions that could explain unexpected behavior.
+
+## In-place update via the admin API
+
+ShadowBroker includes a `POST /api/system/update` endpoint that downloads the latest GitHub release, backs up the current `backend/` and `frontend/` directories, extracts the update over the project, and restarts the application.
+
+Protected files — including `.env`, `*.db`, `*.sqlite`, `carrier_cache.json`, `geocode_cache.json`, `ais_cache.json`, and directories such as `venv`, `node_modules`, and `.next` — are never overwritten during an in-place update.
+
+<Warning>
+  The `/api/system/update` endpoint is intended for non-Docker (bare-metal) deployments running via `start.sh` or `start.bat`. For Docker deployments, use the standard `git pull` + `--build` procedure above, which rebuilds container images cleanly.
+</Warning>
+
+Trigger an in-place update:
+
+```bash
+curl -X POST http://localhost:8000/api/system/update
+```
+
+The endpoint returns a JSON response with the downloaded version tag, the number of files replaced, and a backup path:
+
+```json
+{
+  "status": "ok",
+  "version": "v1.2.0",
+  "files_updated": 142,
+  "backup_path": "/tmp/sb_update_abc123/backup_20260323_120000.zip",
+  "message": "Updated to v1.2.0 — 142 files replaced. Restarting..."
+}
+```
+
+After responding, the backend spawns a detached restart script (`start.bat` on Windows, `start.sh` on Linux/macOS) and exits the current process. The application restarts automatically after a 3-second delay.

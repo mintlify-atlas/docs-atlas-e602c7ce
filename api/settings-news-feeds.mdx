@@ -1,0 +1,163 @@
+---
+title: 'News feed settings'
+description: 'GET, PUT, and POST /api/settings/news-feeds — view, replace, and reset the RSS news feed configuration.'
+---
+
+Three endpoints manage the RSS news feed list. The GET endpoint is public; PUT and POST require `X-Admin-Key`.
+
+## Feed object schema
+
+All feed objects share the same structure:
+
+<ResponseField name="name" type="string" required>
+  Display name for the feed (e.g. `"BBC"`).
+</ResponseField>
+
+<ResponseField name="url" type="string" required>
+  Full RSS/Atom feed URL.
+</ResponseField>
+
+<ResponseField name="weight" type="number" required>
+  Priority weight from 1 (lowest) to 5 (highest). Higher-weight feeds contribute more to the clustered news layer.
+</ResponseField>
+
+---
+
+## GET /api/settings/news-feeds
+
+Returns the current list of configured RSS news feeds. Public — no authentication required.
+
+<Info>
+Rate limit: **30 requests per minute** per IP.
+</Info>
+
+### Example
+
+```bash
+curl http://localhost:8000/api/settings/news-feeds
+```
+
+<ResponseExample>
+
+```json 200
+[
+  { "name": "BBC", "url": "http://feeds.bbci.co.uk/news/world/rss.xml", "weight": 3 },
+  { "name": "GDACS", "url": "https://www.gdacs.org/xml/rss.xml", "weight": 5 },
+  { "name": "Defense News", "url": "https://www.defensenews.com/arc/outboundfeeds/rss/", "weight": 3 }
+]
+```
+
+</ResponseExample>
+
+---
+
+## PUT /api/settings/news-feeds
+
+Replaces the entire news feed list with the provided array. Requires `X-Admin-Key`.
+
+<Info>
+Rate limit: **10 requests per minute** per IP.
+</Info>
+
+### Validation rules
+
+- Maximum **20 feeds** per list.
+- Each feed must have a non-empty `name` and `url`.
+- `weight` must be an integer between 1 and 5.
+
+### Headers
+
+<ParamField header="X-Admin-Key" type="string" required>
+  Admin authentication key.
+</ParamField>
+
+### Request body
+
+A JSON array of feed objects. Each object must include `name`, `url`, and `weight`.
+
+### Response
+
+<ResponseField name="status" type="string" required>
+  `"updated"` on success.
+</ResponseField>
+
+<ResponseField name="count" type="number" required>
+  Number of feeds saved.
+</ResponseField>
+
+### Example
+
+```bash
+curl -X PUT http://localhost:8000/api/settings/news-feeds \
+  -H "X-Admin-Key: your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {"name": "BBC", "url": "http://feeds.bbci.co.uk/news/world/rss.xml", "weight": 3},
+    {"name": "GDACS", "url": "https://www.gdacs.org/xml/rss.xml", "weight": 5}
+  ]'
+```
+
+<ResponseExample>
+
+```json 200 — success
+{
+  "status": "updated",
+  "count": 2
+}
+```
+
+```json 400 — validation failed
+{
+  "status": "error",
+  "message": "Validation failed (max 20 feeds, each needs name/url/weight 1-5)"
+}
+```
+
+</ResponseExample>
+
+---
+
+## POST /api/settings/news-feeds/reset
+
+Resets the news feed list to the built-in defaults (19 feeds including NPR, BBC, Al Jazeera, GDACS, Focus Taiwan, Defense News, and others). Requires `X-Admin-Key`.
+
+<Info>
+Rate limit: **10 requests per minute** per IP.
+</Info>
+
+### Headers
+
+<ParamField header="X-Admin-Key" type="string" required>
+  Admin authentication key.
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string" required>
+  `"reset"` on success, `"error"` on failure.
+</ResponseField>
+
+<ResponseField name="feeds" type="object[]">
+  The restored default feed list. Present on success.
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST http://localhost:8000/api/settings/news-feeds/reset \
+  -H "X-Admin-Key: your-secret-key"
+```
+
+<ResponseExample>
+
+```json 200
+{
+  "status": "reset",
+  "feeds": [
+    { "name": "NPR", "url": "https://feeds.npr.org/1004/rss.xml", "weight": 4 },
+    { "name": "BBC", "url": "http://feeds.bbci.co.uk/news/world/rss.xml", "weight": 3 }
+  ]
+}
+```
+
+</ResponseExample>

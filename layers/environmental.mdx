@@ -1,0 +1,110 @@
+---
+title: "Environmental & infrastructure monitoring"
+description: "NASA FIRMS fire hotspots, NOAA space weather Kp index, IODA internet outage monitoring, global data center mapping, USGS earthquakes, and the day/night cycle overlay."
+---
+
+The environmental and infrastructure layers aggregate passive monitoring data from global sensor networks and public science APIs. All layers require no API key.
+
+## NASA FIRMS fire hotspots
+
+The **Fire Hotspots** layer shows thermal anomalies from the **NOAA-20 VIIRS** satellite instrument via the [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov) (Fire Information for Resource Management System) feed.
+
+| Property | Value |
+|---|---|
+| Instrument | NOAA-20 VIIRS |
+| Coverage window | 24 hours |
+| Scale | 5,000+ global thermal anomalies |
+| Update frequency | ~120 seconds |
+| API key required | No |
+
+### Icon color coding
+
+Fire icons are color-coded by **FRP (Fire Radiative Power)** in megawatts:
+
+| FRP range | Color | Intensity |
+|---|---|---|
+| Low | Yellow | Smoldering / small fire |
+| Medium | Orange | Active fire |
+| High | Red | Intense fire |
+| Very high | Dark red | Extreme fire event |
+
+At low zoom levels, fires cluster into flame-shaped cluster markers with a count label.
+
+<Note>
+  The Fire Hotspots layer is off by default. Enabling it in areas with active wildfire seasons will show high marker density.
+</Note>
+
+## Space weather badge
+
+The **Space Weather Badge** is a persistent status indicator in the bottom status bar — it is always visible regardless of which layers are active.
+
+| Property | Value |
+|---|---|
+| Data source | NOAA SWPC planetary K-index 1-minute feed |
+| Update frequency | ~120 seconds |
+| API key required | No |
+
+### Kp index color coding
+
+| Kp value | Color | Geomagnetic condition |
+|---|---|---|
+| 0–3 | Green | Quiet |
+| 4 | Yellow | Active |
+| 5 | Yellow | Minor storm G1 |
+| 6 | Orange | Moderate storm G2 |
+| 7+ | Red | Strong to extreme storm G3–G5 |
+
+G-scale geomagnetic storms can affect HF radio propagation, satellite operations, and power grid stability. High Kp values may correlate with degraded GPS accuracy and increased ionospheric interference with SDR reception.
+
+## Internet outage monitoring
+
+The **Internet Outages** layer shows regional connectivity alerts from [Georgia Tech IODA](https://ioda.inetintel.cc.gatech.edu) (Internet Outage Detection and Analysis).
+
+| Property | Value |
+|---|---|
+| Data source | Georgia Tech IODA |
+| Datasources used | BGP routing tables, active ping probing |
+| Excluded datasources | Telescope data, interpolated data |
+| Update frequency | ~120 seconds |
+| API key required | No |
+
+Outage markers are grey and show a severity percentage. Only reliable datasources (BGP routing tables and active ping probing) are used — telescope and interpolated data are excluded to reduce false positives.
+
+<Info>
+  Internet outages in regions showing active conflict on the GDELT layer may indicate infrastructure damage or deliberate connectivity disruption.
+</Info>
+
+## Data center mapping
+
+The **Data Centers** layer plots 2,000+ global data center locations from a curated open dataset.
+
+| Property | Value |
+|---|---|
+| Dataset | [DC Map (GitHub)](https://github.com/Ringmast4r/Data-Center-Map---Global) |
+| Scale | 2,000+ facilities |
+| Cache duration | 7 days |
+| API key required | No |
+
+### Display
+
+- Data centers appear as **clustered purple markers** with server-rack icons
+- Clicking a marker shows the operator name, city, and country
+- The panel automatically cross-references the data center's country against active IODA internet outage alerts, flagging any outage affecting that country
+
+## Earthquakes (24h)
+
+The **Earthquakes** layer shows seismic events from the last 24 hours via the [USGS real-time earthquake feed](https://earthquake.usgs.gov).
+
+| Property | Value |
+|---|---|
+| Coverage window | 24 hours |
+| Update frequency | ~60 seconds |
+| API key required | No |
+
+Markers are scaled by magnitude. Clicking a marker shows magnitude, depth, location description, and a link to the USGS event page.
+
+## Day/Night cycle
+
+The **Day / Night Cycle** overlay renders the solar terminator — the line dividing daylight and darkness on Earth's surface — as a live overlay on the map.
+
+The terminator is computed from the current UTC time and solar position. It updates continuously so that the daylight zone tracks in real time. The overlay is on by default and adds no external API calls.

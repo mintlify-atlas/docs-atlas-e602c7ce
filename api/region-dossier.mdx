@@ -1,0 +1,134 @@
+---
+title: 'Region dossier'
+description: 'GET /api/region-dossier — country profile, head of state, and Wikipedia summary for any lat/lng coordinate.'
+---
+
+`GET /api/region-dossier`
+
+Returns a rich intelligence dossier for the country or region at the given coordinates. Data is assembled in parallel from Nominatim, RestCountries, Wikidata SPARQL, and the Wikipedia REST API.
+
+<Info>
+Rate limit: **30 requests per minute** per IP.
+</Info>
+
+## Caching
+
+Results are cached for **24 hours** keyed on a 0.1° grid (approximately 11 km). Multiple requests within the same grid cell return instantly from the cache.
+
+## Query parameters
+
+<ParamField query="lat" type="number" required>
+  Latitude in decimal degrees (−90 to 90).
+</ParamField>
+
+<ParamField query="lng" type="number" required>
+  Longitude in decimal degrees (−180 to 180).
+</ParamField>
+
+## Response
+
+<ResponseField name="coordinates" type="object" required>
+  The input coordinates.
+  <Expandable title="properties">
+    <ResponseField name="lat" type="number">Input latitude.</ResponseField>
+    <ResponseField name="lng" type="number">Input longitude.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="location" type="object" required>
+  Reverse geocode result from Nominatim.
+  <Expandable title="properties">
+    <ResponseField name="city" type="string">Nearest city, town, or village.</ResponseField>
+    <ResponseField name="state" type="string">State or region.</ResponseField>
+    <ResponseField name="country" type="string">Country name.</ResponseField>
+    <ResponseField name="country_code" type="string">ISO 3166-1 alpha-2 country code (uppercase).</ResponseField>
+    <ResponseField name="display_name" type="string">Full formatted address string from Nominatim.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="country" type="object">
+  Country profile. `null` if the point is in international waters or an uninhabited area.
+  <Expandable title="properties">
+    <ResponseField name="name" type="string">Common country name.</ResponseField>
+    <ResponseField name="official_name" type="string">Official country name.</ResponseField>
+    <ResponseField name="leader" type="string">Head of state from Wikidata (P35).</ResponseField>
+    <ResponseField name="government_type" type="string">Form of government from Wikidata (P122).</ResponseField>
+    <ResponseField name="population" type="number">Population from RestCountries.</ResponseField>
+    <ResponseField name="capital" type="string">Capital city.</ResponseField>
+    <ResponseField name="languages" type="string[]">List of official languages.</ResponseField>
+    <ResponseField name="currencies" type="string[]">List of currencies in `"Name (symbol)"` format.</ResponseField>
+    <ResponseField name="region" type="string">World region (e.g. `"Asia"`).</ResponseField>
+    <ResponseField name="subregion" type="string">Sub-region (e.g. `"Eastern Asia"`).</ResponseField>
+    <ResponseField name="area_km2" type="number">Total land area in km².</ResponseField>
+    <ResponseField name="flag_emoji" type="string">Flag emoji character.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="local" type="object">
+  Wikipedia summary for the nearest city or the country itself.
+  <Expandable title="properties">
+    <ResponseField name="name" type="string">City or locality name.</ResponseField>
+    <ResponseField name="state" type="string">State or region name.</ResponseField>
+    <ResponseField name="description" type="string">Short Wikipedia description (e.g. `"Capital city of Japan"`).</ResponseField>
+    <ResponseField name="summary" type="string">Wikipedia article extract (first few paragraphs).</ResponseField>
+    <ResponseField name="thumbnail" type="string">URL of the Wikipedia thumbnail image.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Present only when no country data is available — e.g. `"No country data — possibly international waters or uninhabited area"`.
+</ResponseField>
+
+## Example
+
+```bash
+curl "http://localhost:8000/api/region-dossier?lat=35.6762&lng=139.6503"
+```
+
+<ResponseExample>
+
+```json 200
+{
+  "coordinates": { "lat": 35.6762, "lng": 139.6503 },
+  "location": {
+    "city": "Tokyo",
+    "state": "Tokyo",
+    "country": "Japan",
+    "country_code": "JP",
+    "display_name": "Tokyo, Japan"
+  },
+  "country": {
+    "name": "Japan",
+    "official_name": "Japan",
+    "leader": "Fumio Kishida",
+    "government_type": "Constitutional monarchy",
+    "population": 125681593,
+    "capital": "Tokyo",
+    "languages": ["Japanese"],
+    "currencies": ["Japanese yen (¥)"],
+    "region": "Asia",
+    "subregion": "Eastern Asia",
+    "area_km2": 377930,
+    "flag_emoji": "🇯🇵"
+  },
+  "local": {
+    "name": "Tokyo",
+    "state": "Tokyo",
+    "description": "Capital and most populous city of Japan",
+    "summary": "Tokyo, officially the Tokyo Metropolis, is the capital and most populous city of Japan...",
+    "thumbnail": "https://upload.wikimedia.org/wikipedia/commons/thumb/.../320px-Tokyo.jpg"
+  }
+}
+```
+
+```json Ocean / uninhabited
+{
+  "coordinates": { "lat": 0.0, "lng": -30.0 },
+  "location": {},
+  "country": null,
+  "local": null,
+  "error": "No country data — possibly international waters or uninhabited area"
+}
+```
+
+</ResponseExample>

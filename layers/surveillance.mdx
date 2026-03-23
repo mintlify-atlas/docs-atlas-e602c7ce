@@ -1,0 +1,79 @@
+---
+title: "Surveillance (CCTV mesh)"
+description: "2,000+ live traffic cameras from London, NYC, Austin, and Singapore with automatic media-type detection and clustered map display."
+---
+
+The **CCTV Mesh** layer plots publicly accessible traffic and infrastructure cameras on the map. Camera feeds are stored in a local SQLite database (`cctv.db`) and refreshed every 10 minutes by the scheduler.
+
+<Note>
+  The CCTV Mesh layer is off by default. It is a dense layer — enable it when you want to investigate a specific city or region.
+</Note>
+
+## Sources
+
+Four official public data sources are ingested automatically:
+
+| Source | Agency | Coverage | Refresh rate | API key |
+|---|---|---|---|---|
+| TfL JamCams | Transport for London | London, UK | 10 min | No |
+| TxDOT / Austin Mobility | Austin, TX TxDOT | Austin, TX, US | 10 min | No |
+| NYC DOT | New York City DOT | New York City, US | 10 min | No |
+| Singapore LTA | Land Transport Authority | Singapore | 10 min | Yes (`LTA_ACCOUNT_KEY`) |
+
+### TfL JamCams (London)
+
+Fetches from `https://api.tfl.gov.uk/Place/Type/JamCam`. Each camera returns a `videoUrl` (preferred) or `imageUrl` for the live feed, plus the camera's street-level `commonName` for location context. TfL JamCams refresh at **15-second** intervals.
+
+### Austin TxDOT
+
+Fetches from the City of Austin Open Data portal (`data.austintexas.gov`) with a limit of 2,000 records. Live images are served at `https://cctv.austinmobility.io/image/{cam_id}.jpg`.
+
+### NYC DOT
+
+Fetches from `https://webcams.nyctmc.org/api/cameras`. Live images are served at `https://webcams.nyctmc.org/api/cameras/{cam_id}/image`. NYC DOT cameras refresh at **30-second** intervals.
+
+### Singapore LTA
+
+Fetches from `https://api.data.gov.sg/v1/transport/traffic-images`. Camera IDs are prefixed `SGP-`. Requires an `LTA_ACCOUNT_KEY` environment variable. Singapore LTA cameras refresh every **60 seconds**.
+
+## Custom URL ingestion
+
+In addition to the four official sources, ShadowBroker supports ingestion of custom camera URLs. Any URL pointing to a compatible feed type can be added and will appear on the map.
+
+## Feed rendering
+
+The frontend automatically detects the correct rendering method for each camera URL:
+
+| Media type | Detection rule | Rendering method |
+|---|---|---|
+| `video` | URL ends with `.mp4`, `.webm`, or `.ogg` | HTML `<video>` element |
+| `mjpeg` | URL contains `.mjpg`, `.mjpeg`, or `axis-cgi/mjpg` | MJPEG stream via `<img>` |
+| `hls` | URL contains `.m3u8` or `hls` | HLS player |
+| `embed` | URL contains `embed`, `maps/embed`, or `iframe` | `<iframe>` embed |
+| `satellite` | URL contains `mapbox.com` or `satellite` | Satellite tile render |
+| `image` | All other URLs | Static `<img>` refreshed on interval |
+
+Type detection runs at query time in `_detect_media_type()` and is stored alongside each camera record.
+
+## Database schema
+
+Cameras are stored in a SQLite database at `backend/cctv.db`:
+
+```sql
+CREATE TABLE cameras (
+    id                    TEXT PRIMARY KEY,
+    source_agency         TEXT,
+    lat                   REAL,
+    lon                   REAL,
+    direction_facing      TEXT,
+    media_url             TEXT,
+    refresh_rate_seconds  INTEGER,
+    last_updated          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+Camera IDs are namespaced by source: `TFL-{id}`, `ATX-{id}`, `NYC-{id}`, `SGP-{id}`.
+
+## Map display
+
+Cameras are displayed as **green dot markers** that cluster at low zoom levels with count labels. Clicking a cluster zooms the map to decluster. Clicking an individual camera marker opens the live feed in the SIGINT panel.

@@ -1,0 +1,111 @@
+---
+title: Architecture overview
+description: How ShadowBroker's frontend, backend, and data pipeline fit together
+---
+
+ShadowBroker is a two-tier application: a **Next.js frontend** that renders a live geospatial map in the browser, and a **FastAPI backend** that aggregates data from dozens of open-source intelligence feeds and serves it through two REST endpoints.
+
+The two tiers communicate entirely via REST polling. The browser never connects directly to upstream APIs — all external data flows through the backend.
+
+## System diagram
+
+```
+┌────────────────────────────────────────────────────────┐
+│                   FRONTEND (Next.js)                   │
+│                                                        │
+│  ┌─────────────┐    ┌──────────┐    ┌───────────────┐  │
+│  │ MapLibre GL │    │ NewsFeed │    │ Control Panels│  │
+│  │  2D WebGL   │    │  SIGINT  │    │ Layers/Filters│  │
+│  │ Map Render  │    │  Intel   │    │ Markets/Radio │  │
+│  └──────┬──────┘    └────┬─────┘    └───────┬───────┘  │
+│         └────────────────┼──────────────────┘          │
+│                          │ REST API (60s / 120s)       │
+├──────────────────────────┼─────────────────────────────┤
+│                    BACKEND (FastAPI)                   │
+│                          │                             │
+│  ┌───────────────────────┼──────────────────────────┐  │
+│  │               Data Fetcher (Scheduler)           │  │
+│  │                                                  │  │
+│  │  ┌──────────┬──────────┬──────────┬───────────┐  │  │
+│  │  │ OpenSky  │ adsb.lol │CelesTrak │   USGS    │  │  │
+│  │  │ Flights  │ Military │   Sats   │  Quakes   │  │  │
+│  │  ├──────────┼──────────┼──────────┼───────────┤  │  │
+│  │  │  AIS WS  │ Carrier  │  GDELT   │   CCTV    │  │  │
+│  │  │  Ships   │ Tracker  │ Conflict │  Cameras  │  │  │
+│  │  ├──────────┼──────────┼──────────┼───────────┤  │  │
+│  │  │ DeepState│   RSS    │  Region  │    GPS    │  │  │
+│  │  │ Frontline│  Intel   │ Dossier  │  Jamming  │  │  │
+│  │  ├──────────┼──────────┼──────────┼───────────┤  │  │
+│  │  │  NASA    │  NOAA    │  IODA    │  KiwiSDR  │  │  │
+│  │  │  FIRMS   │ Space Wx │ Outages  │  Radios   │  │  │
+│  │  └──────────┴──────────┴──────────┴───────────┘  │  │
+│  └──────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
+```
+
+## Core components
+
+<CardGroup cols={2}>
+  <Card title="Next.js frontend" icon="browser">
+    Renders the WebGL map, all HUD panels, and polling logic. Runs in the browser at `http://localhost:3000`. Proxies every `/api/*` call through the Next.js server to `BACKEND_URL` — the browser never exposes port 8000.
+  </Card>
+  <Card title="FastAPI backend" icon="server">
+    Python service running on port 8000. Manages background schedulers, the AIS WebSocket stream, and a carrier position tracker. Exposes a small REST API consumed exclusively by the frontend proxy.
+  </Card>
+  <Card title="Data scheduler" icon="clock">
+    An APScheduler `BackgroundScheduler` drives two tiers of data refresh. The fast tier runs every 60 seconds; the slow tier runs every 5 minutes. All fetchers within a tier execute in parallel via `ThreadPoolExecutor`.
+  </Card>
+  <Card title="AIS WebSocket" icon="satellite-dish">
+    A persistent WebSocket connection to `aisstream.io` streams live AIS vessel positions into an in-memory dictionary. A Node.js proxy process handles the WebSocket protocol; Python reads its stdout.
+  </Card>
+</CardGroup>
+
+## Two-endpoint design
+
+The backend exposes two primary data endpoints, each returning a different slice of the aggregated dataset:
+
+| Endpoint | Poll interval | Contents |
+|---|---|---|
+| `GET /api/live-data/fast` | 15s (steady state) | Flights, ships, satellites, CCTV, GPS jamming — all moving or frequently-changing entities |
+| `GET /api/live-data/slow` | 120s (steady state) | News, earthquakes, fires, stocks, weather, frontlines, GDELT, KiwiSDR, data centers — contextual data that changes infrequently |
+
+This split keeps the fast poll small and cheap. High-frequency moving entities (5,000+ flights, 25,000+ ships, 2,000+ satellites) are refreshed on the tight 15-second cycle without dragging along the slower, heavier contextual datasets.
+
+Both endpoints accept optional `s`, `w`, `n`, `e` query parameters for server-side bounding-box filtering, which narrows the response to features within the current map viewport (with a 20% padding buffer).
+
+<Note>
+  On startup the frontend uses an adaptive polling cadence: it retries every 3 seconds until it receives data, then backs off to the 15s/120s steady-state intervals. This means the dashboard populates within seconds of the backend finishing its initial preload.
+</Note>
+
+## Request flow
+
+```
+Browser
+  │
+  │  GET /api/live-data/fast
+  ▼
+Next.js server  (src/app/api/[...path]/route.ts)
+  │
+  │  reads BACKEND_URL at request time
+  │  forwards to http://backend:8000/api/live-data/fast
+  ▼
+FastAPI
+  │  returns gzip-compressed JSON with ETag
+  ▼
+Next.js server  (decompressed, forwarded)
+  ▼
+Browser  (merges into dataRef, triggers re-render)
+```
+
+Because the proxy URL is read at **request time** from the `BACKEND_URL` environment variable, you can point the frontend at any backend address without rebuilding the Next.js image.
+
+## Startup sequence
+
+The FastAPI `lifespan` handler fires these steps in order before the server begins accepting requests:
+
+1. **Secrets loading** — reads `*_FILE` environment variables to support Docker Swarm secrets.
+2. **Environment validation** — `validate_env(strict=True)` checks required keys.
+3. **AIS stream** — loads disk cache (instant vessel population), then opens WebSocket.
+4. **Carrier tracker** — starts OSINT-based carrier position updater.
+5. **Scheduler** — registers fast/slow/GDELT/CCTV APScheduler jobs.
+6. **Background preload** — runs a full `update_all_data()` in a daemon thread so port 8000 is available immediately.

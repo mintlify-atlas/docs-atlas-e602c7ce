@@ -1,0 +1,150 @@
+---
+title: "Environment variables"
+description: "All environment variables for the ShadowBroker backend and frontend, including Docker Swarm secrets support."
+keywords: ["environment variables", "configuration", "env", "docker", "secrets"]
+---
+
+ShadowBroker reads configuration from environment variables at startup. The backend loads them from a `.env` file or from the process environment (Docker Compose `environment:` section). The frontend reads a single variable at runtime — no rebuild needed.
+
+## Backend variables
+
+Create a `.env` file in the `backend/` directory by copying the example:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Then fill in your values.
+
+### Required
+
+<Warning>
+  Without `AIS_API_KEY` the ships layer will be empty. The backend still starts, but no vessel data will appear on the map.
+</Warning>
+
+| Variable | Description | Default |
+|---|---|---|
+| `AIS_API_KEY` | WebSocket API key for [AISStream.io](https://aisstream.io/) real-time vessel tracking. The ships layer is empty without it. | — |
+
+### Optional — data sources
+
+These variables unlock additional data layers. The backend starts and all other layers work fine without them.
+
+| Variable | Description | Effect if missing |
+|---|---|---|
+| `OPENSKY_CLIENT_ID` | OAuth2 client ID for [OpenSky Network](https://opensky-network.org/). Provides flight gap-fill in Africa, Asia, and Latin America. | Flight coverage is reduced in areas not served by ADS-B Exchange. |
+| `OPENSKY_CLIENT_SECRET` | OAuth2 client secret paired with `OPENSKY_CLIENT_ID`. Both must be set together. | Same as above. |
+| `LTA_ACCOUNT_KEY` | Account key for Singapore's [Land Transport Authority](https://datamall.lta.gov.sg/) API. Enables the CCTV traffic camera layer for Singapore. | Singapore CCTV layer is empty. |
+
+### Optional — security and networking
+
+| Variable | Description | Default |
+|---|---|---|
+| `ADMIN_KEY` | Secret key that protects the `/api/settings/api-keys`, `/api/settings/news-feeds`, and `/api/system/update` endpoints. Pass it in the `X-Admin-Key` request header. If unset, those endpoints are open to anyone who can reach the backend — acceptable for local dev, **not for production**. | Unset (endpoints unprotected) |
+| `CORS_ORIGINS` | Comma-separated list of allowed CORS origins. By default the backend auto-detects `localhost` and the machine's LAN IPs. Override this when your frontend is on a different host or port. | Auto-detected localhost + LAN IPs |
+
+## Frontend variables
+
+The frontend reads one variable at **runtime** — it does not need to be baked in at build time. Set it in the root `.env` file (used by Docker Compose) or in the container's environment directly.
+
+| Variable | Description | Default |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | Full URL of the backend API that the browser connects to (e.g., `http://192.168.1.50:8000`). Leave blank for auto-detect on the same host. | Auto-detect |
+
+## Setting variables
+
+### In a .env file
+
+For local development, add variables to the appropriate `.env` file:
+
+```bash backend/.env
+AIS_API_KEY=your-key-here
+OPENSKY_CLIENT_ID=your-client-id
+OPENSKY_CLIENT_SECRET=your-client-secret
+ADMIN_KEY=your-secret-admin-key
+# CORS_ORIGINS=http://192.168.1.50:3000
+# LTA_ACCOUNT_KEY=your-lta-key
+```
+
+### In Docker Compose
+
+Pass variables via the `environment:` section in your `compose.yml`:
+
+```yaml compose.yml
+services:
+  backend:
+    environment:
+      AIS_API_KEY: your-key-here
+      OPENSKY_CLIENT_ID: your-client-id
+      OPENSKY_CLIENT_SECRET: your-client-secret
+      ADMIN_KEY: your-secret-admin-key
+```
+
+Or use an env file with Docker Compose:
+
+```yaml compose.yml
+services:
+  backend:
+    env_file:
+      - backend/.env
+```
+
+### At runtime (frontend)
+
+Because `NEXT_PUBLIC_API_URL` is read at runtime, you can update it without rebuilding the frontend image:
+
+```bash
+docker compose up -d -e NEXT_PUBLIC_API_URL=http://192.168.1.50:8000
+```
+
+## Docker Swarm secrets
+
+All backend variables support a `_FILE` variant for use with Docker Swarm secrets. When `<VAR>_FILE` is set, the backend reads the file at that path and loads its contents into `<VAR>` before any service code runs.
+
+The following variables support the `_FILE` suffix:
+
+- `AIS_API_KEY_FILE`
+- `OPENSKY_CLIENT_ID_FILE`
+- `OPENSKY_CLIENT_SECRET_FILE`
+- `LTA_ACCOUNT_KEY_FILE`
+- `CORS_ORIGINS_FILE`
+- `ADMIN_KEY_FILE`
+
+Example Swarm service definition:
+
+```yaml compose.yml
+services:
+  backend:
+    environment:
+      AIS_API_KEY_FILE: /run/secrets/ais_api_key
+      ADMIN_KEY_FILE: /run/secrets/admin_key
+    secrets:
+      - ais_api_key
+      - admin_key
+
+secrets:
+  ais_api_key:
+    external: true
+  admin_key:
+    external: true
+```
+
+Create secrets with the Docker CLI:
+
+```bash
+echo "your-key-here" | docker secret create ais_api_key -
+echo "your-admin-key" | docker secret create admin_key -
+```
+
+<Note>
+  The `_FILE` loading runs before any service module is imported, so secrets are available to all Python code that reads `os.environ` at import time.
+</Note>
+
+## Startup validation
+
+At startup, the backend calls `validate_env()` and logs the status of every variable:
+
+- **Critical warning** — `ADMIN_KEY` is missing: logged at `CRITICAL` level. The app still starts, but sensitive endpoints are unprotected.
+- **Optional warning** — `AIS_API_KEY`, `OPENSKY_CLIENT_ID`, `OPENSKY_CLIENT_SECRET`, or `LTA_ACCOUNT_KEY` is missing: logged at `WARNING` level. The affected data layer will be empty.
+
+Check the backend logs on first boot to confirm all variables are loaded correctly.

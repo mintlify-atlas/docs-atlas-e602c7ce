@@ -1,0 +1,252 @@
+---
+title: Performance optimizations
+description: How ShadowBroker handles tens of thousands of live map features without degrading browser performance
+---
+
+ShadowBroker renders up to 40,000+ simultaneous map features (flights, ships, satellites, fires, CCTV cameras, etc.) while maintaining a smooth 60fps WebGL frame rate. This page documents the specific optimizations that make this possible.
+
+## Gzip compression
+
+**Impact: ~92% payload reduction (11.6 MB → 915 KB)**
+
+`GZipMiddleware` is applied globally on the FastAPI backend with a 1 KB minimum threshold:
+
+```python
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+```
+
+JSON containing tens of thousands of float coordinates is highly compressible. A typical fast-endpoint response containing 5,000 flights, 25,000 ships, and 2,000 satellites compresses from ~11.6 MB to ~915 KB — a 92% reduction that eliminates most of the network bottleneck.
+
+## ETag caching
+
+**Impact: Eliminates JSON parsing on unchanged responses**
+
+Both `/api/live-data/fast` and `/api/live-data/slow` return an `ETag` header. The frontend stores it and sends `If-None-Match` on subsequent requests:
+
+```ts
+// Frontend: useDataPolling.ts
+const headers: Record<string, string> = {};
+if (fastEtag.current) headers['If-None-Match'] = fastEtag.current;
+const res = await fetch(`${API_BASE}/api/live-data/fast`, { headers });
+if (res.status === 304) {
+  scheduleNext('fast'); // data unchanged — skip JSON parse
+  return;
+}
+fastEtag.current = res.headers.get('etag');
+```
+
+```python
+# Backend: main.py
+def _etag_response(request: Request, payload: dict, prefix: str = ""):
+    content = json.dumps(payload)
+    etag = hashlib.md5(f"{prefix}{content}".encode()).hexdigest()[:16]
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304,
+                        headers={"ETag": etag, "Cache-Control": "no-cache"})
+    return Response(content=content, media_type="application/json",
+                    headers={"ETag": etag, "Cache-Control": "no-cache"})
+```
+
+When data has not changed between polls (common for the slow endpoint between major events), the server returns a 304 and the client skips JSON parsing and React re-renders entirely.
+
+## Viewport culling
+
+**Impact: Reduces rendered features proportional to zoom level**
+
+The map computes the current viewport bounds on every pan/zoom and applies a 20% buffer:
+
+```ts
+// MaplibreViewer.tsx
+const updateBounds = useCallback(() => {
+    const b = map.getBounds();
+    const buf = 0.2; // 20% buffer
+    setMapBounds([
+        b.getWest()  - lngRange * buf,
+        b.getSouth() - latRange * buf,
+        b.getEast()  + lngRange * buf,
+        b.getNorth() + latRange * buf
+    ]);
+}, []);
+
+// Fast bounds check used by all GeoJSON builders
+const inView = useCallback((lat: number, lng: number) =>
+    lng >= mapBounds[0] && lng <= mapBounds[2] &&
+    lat >= mapBounds[1] && lat <= mapBounds[3],
+    [mapBounds]
+);
+```
+
+The backend applies the same 20% buffer when processing bbox query parameters:
+
+```python
+# main.py — _bbox_filter
+pad_lat = (n - s) * 0.2
+pad_lng = (e - w) * 0.2
+```
+
+This culling operates at two levels: server-side (reducing payload size) and client-side (reducing features passed to MapLibre).
+
+## Imperative map updates
+
+**Impact: Bypasses React reconciliation for high-frequency layers**
+
+For layers that update every 15 seconds with thousands of features (flights, satellites, fires), calling `setData()` directly on the MapLibre source skips React's virtual DOM diffing entirely:
+
+```ts
+// useImperativeSource.ts — simplified
+export function useImperativeSource(mapRef, sourceId, geojson) {
+    useEffect(() => {
+        const map = mapRef.current?.getMap();
+        const source = map?.getSource(sourceId);
+        if (source && geojson) {
+            // Direct MapLibre API call — no React re-render
+            (source as maplibregl.GeoJSONSource).setData(geojson);
+        }
+    }, [geojson]);
+}
+```
+
+This is the single largest frame-rate optimization. Without it, React would reconcile thousands of GeoJSON feature objects on every poll cycle.
+
+## Clustered rendering
+
+**Impact: Reduces visible feature count at low zoom levels**
+
+Ships, CCTV cameras, earthquakes, fire hotspots, and data centers use MapLibre's built-in clustering. At low zoom levels, nearby features are merged into a single cluster marker with a count label. They separate as you zoom in.
+
+```ts
+// Example: ships source with clustering enabled
+<Source
+  id="ships"
+  type="geojson"
+  data={shipsGeoJSON}
+  cluster={true}
+  clusterMaxZoom={9}
+  clusterRadius={40}
+>
+```
+
+This is critical for the ship layer (25,000+ vessels) — without clustering, rendering individual markers at world zoom would overwhelm the WebGL renderer.
+
+## Debounced viewport updates
+
+**Impact: Prevents GeoJSON rebuild thrash during pan/zoom**
+
+GeoJSON is not rebuilt on every map move event. Instead, viewport bounds updates are debounced:
+
+- **Standard layers** — 300ms debounce after the map stops moving.
+- **Dense layers** (satellites, fires) — 2s debounce, as rebuilding 2,000+ satellite positions or 5,000+ fire hotspots is more expensive.
+
+This means fast panning across the map produces at most one GeoJSON rebuild per debounce window rather than one per animation frame.
+
+```ts
+// Debounced backend viewport notification
+if (boundsTimerRef.current) clearTimeout(boundsTimerRef.current);
+boundsTimerRef.current = setTimeout(() => {
+    fetch(`${API_BASE}/api/viewport`, {
+        method: 'POST',
+        body: JSON.stringify({ s, w, n, e })
+    });
+}, 1500); // 1.5s debounce after map stops moving
+```
+
+## Position interpolation
+
+**Impact: Smooth animation between 15-second data refreshes**
+
+Aircraft, ships, and satellites don't teleport between poll cycles. A `useInterpolation` hook animates positions on a 10-second tick:
+
+```ts
+// useInterpolation.ts — simplified
+export function useInterpolation() {
+    const interpTick = useRef(0);
+    const dtSeconds = useRef(0);
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            interpTick.current += 1;
+            dtSeconds.current = INTERP_TICK_MS / 1000; // e.g. 10
+        }, INTERP_TICK_MS);
+        return () => clearInterval(timer);
+    }, []);
+}
+```
+
+Each GeoJSON builder uses the current heading and speed-over-ground to extrapolate the feature's position forward by `dtSeconds` since the last data timestamp. The result is smooth, continuous movement regardless of poll latency.
+
+## React.memo
+
+**Impact: Prevents unnecessary re-renders of heavy panel components**
+
+Heavy sidebar components are wrapped with `React.memo` so they only re-render when their specific props change:
+
+```ts
+const NewsFeed = React.memo(function NewsFeed({ data, selectedEntity, ... }) {
+    // Only re-renders when data.news or selectedEntity changes
+});
+```
+
+Without memoization, every `dataVersion` increment from the polling hook would trigger a full re-render of all panels — including the `MaplibreViewer`, which would restart its GeoJSON build pipeline.
+
+## Coordinate precision
+
+**Impact: Reduces JSON payload size by ~30% for coordinate-heavy responses**
+
+All lat/lng values are rounded to 5 decimal places (~1 meter precision) before being stored in the data cache:
+
+```python
+# ais_stream.py — get_ais_vessels()
+result.append({
+    "lat": round(v.get("lat", 0), 5),
+    "lng": round(v.get("lng", 0), 5),
+    ...
+})
+```
+
+This applies to all fast-tier data sources. Raw float64 coordinates from upstream APIs (e.g., `48.123456789012345`) are truncated to `48.12346`. For geospatial visualization at any zoom level below ~0.1m resolution, 5 decimals is indistinguishable from the original precision.
+
+## Bbox filtering query params
+
+**Impact: Reduces server response size for zoomed-in views**
+
+Both `/api/live-data/fast` and `/api/live-data/slow` accept optional `s`, `w`, `n`, `e` bounding box parameters. When provided, the server filters each data collection to features within the padded bounds before serializing:
+
+```python
+@app.get("/api/live-data/fast")
+async def live_data_fast(
+    request: Request,
+    s: float = Query(None),
+    w: float = Query(None),
+    n: float = Query(None),
+    e: float = Query(None)
+):
+    d = get_latest_data()
+    has_bbox = all(v is not None for v in (s, w, n, e))
+    def _f(items, lat_key="lat", lng_key="lng"):
+        return _bbox_filter(items, s, w, n, e, lat_key, lng_key) if has_bbox else items
+    payload = {
+        "commercial_flights": _f(d.get("commercial_flights", [])),
+        "ships": _f(d.get("ships", [])),
+        ...
+    }
+    bbox_tag = f"{s},{w},{n},{e}" if has_bbox else "full"
+    return _etag_response(request, payload, prefix=f"fast|{bbox_tag}|")
+```
+
+The `_bbox_filter` function handles antimeridian-crossing bounding boxes (e.g., viewing the Pacific near the date line) by detecting when `west > east` after padding.
+
+## Optimization summary
+
+| Optimization | Layer | Mechanism |
+|---|---|---|
+| Gzip compression | Network | `GZipMiddleware(minimum_size=1000)` |
+| ETag caching | Network | MD5 hash of serialized payload |
+| Viewport culling | Client + server | 20% padded bounds check |
+| Imperative updates | Rendering | `source.setData()` bypassing React |
+| Clustered rendering | Rendering | MapLibre `cluster=true` |
+| Debounced viewport | Client | 300ms / 2s `setTimeout` |
+| Position interpolation | Rendering | 10s tick extrapolation |
+| `React.memo` | React | Prevents re-renders on unchanged props |
+| Coordinate precision | Network | `round(lat, 5)` before storage |
+| Bbox filtering | Network | Server-side spatial filter |

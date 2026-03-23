@@ -1,0 +1,81 @@
+---
+title: "Satellite imagery"
+description: "NASA GIBS MODIS Terra daily imagery with time slider, Esri sub-meter basemap, on-demand Sentinel-2 intel cards, and the SATELLITE style preset."
+---
+
+ShadowBroker includes three independent satellite imagery sources ranging from global daily composites to on-demand 10-meter resolution scene lookups.
+
+## NASA GIBS MODIS Terra (daily imagery)
+
+The **MODIS Terra (Daily)** layer overlays NASA's GIBS (Global Imagery Browse Services) true-color imagery from the MODIS Terra satellite.
+
+| Property | Value |
+|---|---|
+| Resolution | ~250 meters per pixel |
+| Coverage | Global |
+| Latency | 24–48 hours |
+| Source | NASA GIBS (`gibs.earthdata.nasa.gov`) |
+| API key required | No |
+
+### Controls
+
+- **30-day time slider** — scrub backward through the last 30 days of daily imagery
+- **Play / Pause animation** — auto-advance through the time slider to visualize changes over time
+- **Opacity control** — blend the imagery layer with the underlying dark map
+
+This layer is off by default. Enable it from the **Layers** panel.
+
+<Note>
+  MODIS Terra imagery is updated daily but with a 24–48 hour delay. It is useful for visualizing large-scale events (wildfires, dust storms, flood extents) but not for near-real-time situational awareness.
+</Note>
+
+## Esri World Imagery (high-res basemap)
+
+The **High-Res Satellite** layer replaces the dark CARTO basemap with Esri's World Imagery — a sub-meter resolution satellite basemap suitable for identifying individual buildings, vehicles, and terrain features at zoom level 18 and above.
+
+| Property | Value |
+|---|---|
+| Resolution | Sub-meter (zoom 18+) |
+| Coverage | Global (coverage varies by region) |
+| Source | Esri World Imagery (`arcgis.com`) |
+| API key required | No |
+
+This layer is off by default. You can also activate it instantly via the **SATELLITE** style preset (cycle through **STYLE** → **DEFAULT → SATELLITE → FLIR → NVG → CRT**).
+
+## Sentinel-2 intel card
+
+Right-clicking anywhere on the map triggers an on-demand search for the most recent **Sentinel-2 L2A** scene covering that point, via the [Microsoft Planetary Computer STAC API](https://planetarycomputer.microsoft.com/api/stac/v1).
+
+| Property | Value |
+|---|---|
+| Resolution | 10 meters per pixel |
+| Search window | Last 30 days |
+| Cloud cover filter | Less than 30% |
+| Cache | 1 hour per 0.02° grid cell (~2 km) |
+| API key required | No |
+
+### What the intel card shows
+
+- **Capture date** — UTC datetime of the scene acquisition
+- **Cloud cover %** — percentage of the scene obscured by cloud
+- **Thumbnail** — low-resolution preview of the scene
+- **Full-resolution link** — clickable link to the full PNG rendered preview from Azure Blob Storage
+- **Platform** — Sentinel-2A or Sentinel-2B
+
+Results are cached for 1 hour per location to avoid redundant API calls when right-clicking nearby points.
+
+<Tip>
+  Sentinel-2 imagery updates every ~5 days for most locations. If no clear scene exists within 30 days (e.g., persistent cloud cover), the card will indicate "No clear scenes in last 30 days".
+</Tip>
+
+## SATELLITE style preset
+
+The **STYLE** button in the top-right corner of the map cycles through visual presets. Selecting **SATELLITE** switches the base map to the Esri World Imagery layer without using the layer panel. The available presets are:
+
+| Preset | Description |
+|---|---|
+| DEFAULT | Dark CARTO basemap |
+| SATELLITE | Esri World Imagery |
+| FLIR | Thermal-style color grading |
+| NVG | Night-vision green color grading |
+| CRT | Retro CRT scan-line style |

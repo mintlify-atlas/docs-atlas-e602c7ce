@@ -1,0 +1,85 @@
+---
+title: "Aviation tracking"
+description: "Real-time commercial, private, military, and tracked aircraft via ADS-B — with holding-pattern detection, flight trails, and owner identification."
+---
+
+The aviation layers display real-time aircraft positions pulled from two ADS-B aggregator APIs. Aircraft are classified into four independently toggleable sub-layers, each rendered with shape-accurate SVG icons.
+
+## Data sources
+
+| Source | Layer | Update frequency | API key |
+|---|---|---|---|
+| OpenSky Network | Commercial, private, private jets, tracked | ~60s | Optional (anonymous limited) |
+| adsb.lol military endpoint | Military flights | ~60s | No |
+
+The backend fetches both sources in parallel every 60 seconds as part of the fast-tier scheduler.
+
+## Sub-layers
+
+### Commercial flights
+
+Shows ~5,000+ airline, cargo, and general aviation aircraft. Data comes from the OpenSky Network REST API. Aircraft are rendered using shape-accurate SVG icons that distinguish airliners, turboprops, and helicopters.
+
+### Private aircraft
+
+Light GA aircraft, turboprops, and business jets that are not classified as high-value private jets. Tracked separately from commercial traffic to reduce visual noise.
+
+### Private jets
+
+High-net-worth individual aircraft with owner identification. Where available, the tail number is cross-referenced against a plane-alert enrichment database to surface owner name, organization, and associated Wikipedia profile. This makes it possible to track aircraft registered to billionaires, corporations, government officials, and other persons of interest.
+
+### Military flights
+
+Military and government aircraft fetched from the adsb.lol military endpoint. Includes tankers (KC-135, KC-46), intelligence, surveillance, and reconnaissance (ISR) aircraft, fighters, and heavy transports. The adsb.lol endpoint curates a dedicated feed of military callsigns and registrations.
+
+### Tracked aircraft
+
+A special-interest watch list layer for individually tracked aircraft of note.
+
+## Flight trail accumulation
+
+All tracked aircraft accumulate a persistent breadcrumb trail as they move. Trails are rendered as fading polylines behind each aircraft icon and persist across multiple polling cycles, making it possible to visualize flight paths, approach corridors, and orbit patterns over time.
+
+## Holding pattern detection
+
+The backend automatically detects aircraft flying holding patterns by accumulating heading changes across successive position reports. An aircraft is flagged as circling when its total accumulated heading change exceeds **300 degrees**. Circling aircraft are labeled on the map to draw analyst attention to orbiting ISR platforms, surveillance aircraft, and search-and-rescue operations.
+
+## Grounded detection
+
+Aircraft reporting an altitude below **100 feet AGL** (above ground level) are treated as grounded and rendered with grey icons rather than the normal colored icons. This prevents cluttering the airspace view with stationary aircraft at airports.
+
+## Aircraft classification and icons
+
+Each aircraft is assigned a visual category based on its ADS-B type designator:
+
+| Category | Icon shape |
+|---|---|
+| Airliner | Wide-body or narrow-body airliner silhouette |
+| Turboprop | High-wing turboprop silhouette |
+| Business jet | Swept-wing bizjet silhouette |
+| Helicopter | Rotor silhouette |
+| Military | Tactical aircraft silhouette |
+| Unknown | Generic aircraft shape |
+
+<Tip>
+  To focus on a specific aircraft type, use the layer toggles to hide commercial traffic and show only military or private jet layers — useful when looking for ISR orbits or tracking a specific tail number.
+</Tip>
+
+## Advanced filtering
+
+The **Advanced Filter** modal lets you filter aircraft by:
+
+- Departure or arrival airport (ICAO code)
+- Country of registration
+- Owner name (for enriched private jets)
+
+Filters apply in real time without requiring a data refresh.
+
+## Performance notes
+
+The aviation layer is one of the highest-volume layers in ShadowBroker. To maintain smooth rendering at 5,000+ aircraft, the frontend uses:
+
+- **Viewport culling** — only aircraft within the visible map bounds plus a 20% buffer are rendered
+- **Imperative `setData()` calls** — high-frequency position updates bypass React reconciliation entirely
+- **Position interpolation** — smooth 10-second tick animation between 60-second data refreshes
+- **ETag caching** — `304 Not Modified` responses skip redundant JSON parsing when data has not changed

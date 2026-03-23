@@ -1,0 +1,138 @@
+---
+title: "News feeds"
+description: "Configure the RSS news feeds that populate the news ticker and geolocated news events on the map."
+keywords: ["news feeds", "rss", "configuration", "settings"]
+---
+
+ShadowBroker aggregates RSS feeds into the news ticker and geolocated news events layer. The feed list is fully configurable — you can add, remove, and reorder feeds through the Settings panel or the API.
+
+## Default feeds
+
+The following 19 feeds ship with ShadowBroker out of the box, with an Asia-Pacific and defense focus:
+
+| Name | URL | Weight |
+|---|---|---|
+| GDACS | `https://www.gdacs.org/xml/rss.xml` | 5 |
+| FocusTaiwan | `https://focustaiwan.tw/rss` | 5 |
+| NPR | `https://feeds.npr.org/1004/rss.xml` | 4 |
+| Kyodo | `https://english.kyodonews.net/rss/news.xml` | 4 |
+| SCMP | `https://www.scmp.com/rss/91/feed` | 4 |
+| The Diplomat | `https://thediplomat.com/feed/` | 4 |
+| Stars and Stripes | `https://www.stripes.com/feeds/pacific.rss` | 4 |
+| Yonhap | `https://en.yna.co.kr/RSS/news.xml` | 4 |
+| Taipei Times | `https://www.taipeitimes.com/xml/pda.rss` | 4 |
+| BBC | `http://feeds.bbci.co.uk/news/world/rss.xml` | 3 |
+| NHK | `https://www3.nhk.or.jp/nhkworld/rss/world.xml` | 3 |
+| CNA | `https://www.channelnewsasia.com/rssfeed/8395986` | 3 |
+| Mercopress | `https://en.mercopress.com/rss/` | 3 |
+| Nikkei Asia | `https://asia.nikkei.com/rss` | 3 |
+| Asia Times | `https://asiatimes.com/feed/` | 3 |
+| Defense News | `https://www.defensenews.com/arc/outboundfeeds/rss/` | 3 |
+| Japan Times | `https://www.japantimes.co.jp/feed/` | 3 |
+| AlJazeera | `https://www.aljazeera.com/xml/rss/all.xml` | 2 |
+| NYT | `https://rss.nytimes.com/services/xml/rss/nyt/World.xml` | 1 |
+
+## Priority weights
+
+Each feed has a weight from **1** (lowest) to **5** (highest). The weight controls how prominently articles from that feed appear relative to others when the news aggregator ranks and deduplicates items.
+
+| Weight | Meaning |
+|---|---|
+| 5 | Highest priority — alerts and high-signal sources (e.g., GDACS disaster alerts, FocusTaiwan) |
+| 4 | High priority — primary regional sources |
+| 3 | Standard priority — general world news |
+| 2 | Lower priority — supplementary sources |
+| 1 | Lowest priority — high-volume feeds used as background coverage |
+
+## Adding and removing feeds via the Settings panel
+
+<Steps>
+  <Step title="Open Settings">
+    In the dashboard, click **Settings** in the sidebar, then select the **News Feeds** tab.
+  </Step>
+  <Step title="Add a new feed">
+    Click **Add feed**. Enter a display name, the RSS feed URL, and select a weight from 1–5. Click **Save**.
+  </Step>
+  <Step title="Remove a feed">
+    Click the trash icon next to any feed in the list and confirm the deletion.
+  </Step>
+  <Step title="Reorder feeds">
+    Drag feeds up or down to reorder them. Weight is the primary ranking factor; order is a tiebreaker.
+  </Step>
+</Steps>
+
+<Warning>
+  The maximum number of feeds is **25**. Attempts to save a feed list with more than 25 entries are rejected with a `400` error. Remove an existing feed before adding a new one if you are at the limit.
+</Warning>
+
+## Persistence
+
+Feed configuration is stored in `backend/config/news_feeds.json`. The file is read at startup and written whenever you save changes through the Settings panel or API. Changes persist across container restarts automatically.
+
+If the file is missing or invalid, the backend falls back to the default feed list.
+
+## The /api/settings/news-feeds endpoints
+
+All feed management endpoints require the `X-Admin-Key` header for write operations (PUT and POST). The GET endpoint is public.
+
+### GET /api/settings/news-feeds
+
+Returns the current feed list as a JSON array.
+
+```bash
+curl http://localhost:8000/api/settings/news-feeds
+```
+
+Example response:
+
+```json
+[
+  { "name": "GDACS", "url": "https://www.gdacs.org/xml/rss.xml", "weight": 5 },
+  { "name": "NPR", "url": "https://feeds.npr.org/1004/rss.xml", "weight": 4 }
+]
+```
+
+### PUT /api/settings/news-feeds
+
+Replaces the entire feed list. Send the complete list as a JSON array — partial updates are not supported.
+
+```bash
+curl -X PUT \
+  -H "X-Admin-Key: your-admin-key" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {"name": "GDACS", "url": "https://www.gdacs.org/xml/rss.xml", "weight": 5},
+    {"name": "Reuters", "url": "https://feeds.reuters.com/reuters/worldNews", "weight": 4}
+  ]' \
+  http://localhost:8000/api/settings/news-feeds
+```
+
+Validation rules:
+- Maximum 25 feeds.
+- Each feed must have a non-empty `name` and `url`.
+- `weight` must be an integer between 1 and 5.
+
+Returns `400` if validation fails.
+
+### POST /api/settings/news-feeds/reset
+
+Restores the default feed list, overwriting any custom configuration.
+
+```bash
+curl -X POST \
+  -H "X-Admin-Key: your-admin-key" \
+  http://localhost:8000/api/settings/news-feeds/reset
+```
+
+The response includes the restored feed list:
+
+```json
+{
+  "status": "reset",
+  "feeds": [...]
+}
+```
+
+<Note>
+  All three endpoints are rate-limited. GET is limited to 30 requests/minute. PUT and POST are limited to 10 requests/minute.
+</Note>

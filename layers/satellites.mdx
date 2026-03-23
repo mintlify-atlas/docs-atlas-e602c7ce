@@ -1,0 +1,58 @@
+---
+title: "Satellite orbital tracking"
+description: "Real-time positions for 2,000+ active satellites via CelesTrak TLE data and SGP4 propagation, classified by mission type with color-coded icons."
+---
+
+The satellite layer displays live orbital positions for over 2,000 active satellites. No API key is required — all data comes from publicly available Two-Line Element (TLE) sets published by [CelesTrak](https://celestrak.org).
+
+## How it works
+
+The backend fetches the latest TLE catalog from CelesTrak and uses the **SGP4** (Simplified General Perturbation 4) orbital mechanics model to propagate each satellite's position forward to the current UTC time. Positions are recalculated every 60 seconds as part of the fast-tier scheduler.
+
+SGP4 is the standard algorithm used by NORAD for tracking Earth-orbiting objects. It accounts for atmospheric drag, solar pressure, and Earth's oblateness to produce accurate near-Earth orbital predictions.
+
+## Data source
+
+| Source | Data | Update frequency | API key |
+|---|---|---|---|
+| CelesTrak | Active satellite TLE catalog | ~60s | No |
+
+## Mission-type classification
+
+Each satellite is assigned a mission type based on its catalog name and associated metadata. The type determines the icon color on the map:
+
+| Mission type | Color | Examples |
+|---|---|---|
+| Military reconnaissance | Red | KH-series, USA-series NRO satellites |
+| SAR (Synthetic Aperture Radar) | Cyan | Sentinel-1, NISAR, RADARSAT |
+| SIGINT | White | Lacrosse/Onyx, classified USA satellites |
+| Navigation | Blue | GPS Block III, GLONASS-M, Galileo |
+| Early warning | Magenta | SBIRS, DSP missile-warning satellites |
+| Commercial imaging | Green | Planet Labs, Maxar, Airbus |
+| Space station | Gold | ISS, Tiangong, Mir |
+
+<Tip>
+  Red dots over your area of interest indicate military reconnaissance or SIGINT satellites that may be conducting collection passes. Overhead timing is visible from the satellite's current track on the map.
+</Tip>
+
+## Scale
+
+- **2,000+ active satellites** tracked simultaneously
+- Positions are updated every **60 seconds**
+- Each satellite icon is oriented along its current ground track heading
+
+## Performance
+
+The satellite layer is one of the densest on the map. To maintain smooth rendering at 2,000+ moving markers:
+
+- The frontend uses **imperative `setData()` calls** to update GeoJSON without triggering React re-renders
+- A **2-second debounce** prevents redundant GeoJSON rebuilds during pan/zoom
+- **Viewport culling** with a 20% buffer limits rendering to visible satellites only
+
+## No API key required
+
+CelesTrak publishes TLE data freely as part of its public space surveillance mission. ShadowBroker does not use any commercial space tracking APIs.
+
+<Note>
+  TLE data is published with a latency of a few hours relative to actual NORAD tracking. Propagated positions are accurate to within a few kilometers for low Earth orbit satellites.
+</Note>

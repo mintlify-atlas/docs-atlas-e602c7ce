@@ -1,0 +1,47 @@
+---
+title: 'Refresh'
+description: 'GET /api/refresh — trigger an immediate background data refresh across all sources.'
+---
+
+`GET /api/refresh`
+
+Triggers a full background refresh of all data sources outside the normal scheduler cycle. The request returns immediately — the refresh runs in a background thread.
+
+<Info>
+Rate limit: **2 requests per minute** per IP.
+</Info>
+
+## When to use this
+
+Call this endpoint after updating API keys via `PUT /api/settings/api-keys`. New keys are loaded into the running process immediately, but data fetched before the update still uses the old credentials. A manual refresh forces all fetchers to re-run with the new keys.
+
+## Response
+
+<ResponseField name="status" type="string" required>
+  One of two values:
+
+  - `"refreshing in background"` — refresh was accepted and is now running
+  - `"refresh already in progress"` — a previous refresh has not yet completed; the request was ignored
+</ResponseField>
+
+## Example
+
+```bash
+curl http://localhost:8000/api/refresh
+```
+
+<ResponseExample>
+
+```json Accepted
+{
+  "status": "refreshing in background"
+}
+```
+
+```json Already running
+{
+  "status": "refresh already in progress"
+}
+```
+
+</ResponseExample>

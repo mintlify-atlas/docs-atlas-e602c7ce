@@ -1,0 +1,214 @@
+---
+title: "Kubernetes / Helm"
+description: "Deploy ShadowBroker on a Kubernetes cluster using the included Helm chart."
+---
+
+ShadowBroker includes a Helm chart based on the [bjw-s-labs `app-template`](https://bjw-s-labs.github.io/helm-charts/) that provides separate, independently scalable deployments for the backend and frontend.
+
+<Note>
+  This is an advanced deployment path. For home labs or single-host setups, [Docker Compose](/deployment/docker) is simpler to operate.
+</Note>
+
+## Prerequisites
+
+- **Helm** >= 3.0
+- **kubectl** configured against your target cluster
+- An ingress controller — Traefik with Cert-Manager is recommended (see [Ingress](#ingress) below)
+- An API key from [aisstream.io](https://aisstream.io)
+
+## Installation
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/BigBodyCobain/Shadowbroker.git
+    cd Shadowbroker
+    ```
+  </Step>
+
+  <Step title="Add the bjw-s-labs Helm repository">
+    The chart depends on the `app-template` chart from bjw-s-labs:
+
+    ```bash
+    helm repo add bjw-s-labs https://bjw-s-labs.github.io/helm-charts/
+    helm repo update
+    ```
+  </Step>
+
+  <Step title="Create the namespace and API key secret">
+    The chart reads `AIS_API_KEY`, `OPENSKY_CLIENT_ID`, and `OPENSKY_CLIENT_SECRET` from a Kubernetes Secret named `shadowbroker-env`:
+
+    ```bash
+    kubectl create namespace shadowbroker
+
+    kubectl create secret generic shadowbroker-env \
+      --namespace shadowbroker \
+      --from-literal=AIS_API_KEY=your_aisstream_key \
+      --from-literal=OPENSKY_CLIENT_ID=your_opensky_client_id \
+      --from-literal=OPENSKY_CLIENT_SECRET=your_opensky_client_secret
+    ```
+
+    <Warning>
+      `AIS_API_KEY` is required. The backend will start but maritime vessel tracking will not function without a valid key.
+    </Warning>
+  </Step>
+
+  <Step title="Install the chart">
+    Install from the local `helm/chart` directory:
+
+    ```bash
+    helm install shadowbroker ./helm/chart \
+      --create-namespace \
+      --namespace shadowbroker
+    ```
+
+    Alternatively, install using the bjw-s-labs repository directly with the bundled `values.yaml`:
+
+    ```bash
+    helm install shadowbroker bjw-s-labs/app-template \
+      --namespace shadowbroker \
+      -f ./helm/chart/values.yaml
+    ```
+  </Step>
+
+  <Step title="Verify the deployment">
+    ```bash
+    kubectl get pods -n shadowbroker
+    kubectl get services -n shadowbroker
+    ```
+
+    You should see two running pods (`shadowbroker-backend-*` and `shadowbroker-frontend-*`) and two ClusterIP services.
+  </Step>
+</Steps>
+
+## Architecture
+
+The chart deploys two independent controllers:
+
+| Controller | Image | Port | Service type |
+|---|---|---|---|
+| `backend` | `ghcr.io/bigbodycobain/shadowbroker-backend:latest` | `8000` | ClusterIP |
+| `frontend` | `ghcr.io/bigbodycobain/shadowbroker-frontend:latest` | `3000` | ClusterIP |
+
+The frontend communicates with the backend via Kubernetes service discovery. `BACKEND_URL` defaults to the backend's in-cluster DNS name:
+
+```
+http://shadowbroker-backend.shadowbroker.svc.cluster.local:8000
+```
+
+### Security contexts
+
+Both containers run as a non-root user with UID/GID `1001`, matching the users created in their respective Dockerfiles:
+
+```yaml
+securityContext:
+  runAsUser: 1001
+  runAsGroup: 1001
+```
+
+### Update strategy
+
+Both deployments use `RollingUpdate` with `unavailable: 1`, ensuring zero-downtime updates.
+
+## Key chart values
+
+The full default configuration is in `helm/chart/values.yaml`. The most important values to override:
+
+```yaml values.yaml
+shadowbroker:
+  controllers:
+    backend:
+      containers:
+        main:
+          image:
+            repository: ghcr.io/bigbodycobain/shadowbroker-backend
+            tag: latest          # Pin to a specific release tag in production
+          env:
+            AIS_API_KEY:
+              secretKeyRef:
+                name: shadowbroker-env
+                key: AIS_API_KEY
+            OPENSKY_CLIENT_ID:
+              secretKeyRef:
+                name: shadowbroker-env
+                key: OPENSKY_CLIENT_ID
+            OPENSKY_CLIENT_SECRET:
+              secretKeyRef:
+                name: shadowbroker-env
+                key: OPENSKY_CLIENT_SECRET
+
+    frontend:
+      containers:
+        main:
+          image:
+            repository: ghcr.io/bigbodycobain/shadowbroker-frontend
+            tag: latest
+          env:
+            BACKEND_URL: 'http://shadowbroker-backend.shadowbroker.svc.cluster.local:8000'
+
+  service:
+    backend:
+      controller: backend
+      type: ClusterIP
+      ports:
+        http:
+          port: 8000
+    frontend:
+      controller: frontend
+      type: ClusterIP
+      ports:
+        http:
+          port: 3000
+```
+
+To override specific values without editing the file, use `--set`:
+
+```bash
+helm upgrade shadowbroker ./helm/chart \
+  --namespace shadowbroker \
+  --set shadowbroker.controllers.backend.containers.main.image.tag=v1.2.0
+```
+
+## Ingress
+
+The chart does not bundle an ingress controller. `ingress-nginx` was deprecated in late 2025; the recommended approach is [Traefik](https://traefik.io/traefik) with [Cert-Manager](https://cert-manager.io/) for automatic TLS termination.
+
+<Note>
+  You can also use Kubernetes Gateway API if your cluster supports it.
+</Note>
+
+An example Traefik `IngressRoute` that exposes the frontend and proxies `/api/*` to the backend:
+
+```yaml ingress-route.yaml
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: shadowbroker
+  namespace: shadowbroker
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`shadowbroker.example.com`)
+      kind: Rule
+      services:
+        - name: shadowbroker-frontend
+          port: 3000
+  tls:
+    certResolver: letsencrypt
+```
+
+<Tip>
+  Because the frontend proxies all `/api/*` requests server-side to `BACKEND_URL`, you only need to expose the frontend service externally. The backend service can remain ClusterIP-only.
+</Tip>
+
+## Uninstalling
+
+```bash
+helm uninstall shadowbroker -n shadowbroker
+kubectl delete namespace shadowbroker
+```
+
+<Warning>
+  Deleting the namespace also removes the `shadowbroker-env` secret containing your API keys. Back up your key values before uninstalling.
+</Warning>

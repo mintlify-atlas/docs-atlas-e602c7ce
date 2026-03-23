@@ -1,0 +1,85 @@
+---
+title: 'Health check'
+description: 'GET /api/health — service health status, per-source record counts, freshness timestamps, and server uptime.'
+---
+
+`GET /api/health`
+
+Returns a snapshot of system health including live record counts for each data source, per-source freshness timestamps, and total server uptime. Useful for monitoring dashboards and liveness probes.
+
+<Info>
+Rate limit: **30 requests per minute** per IP.
+</Info>
+
+## Response
+
+<ResponseField name="status" type="string" required>
+  Always `"ok"` while the server is running.
+</ResponseField>
+
+<ResponseField name="last_updated" type="string">
+  ISO 8601 UTC timestamp of the last completed fast-tier data update.
+</ResponseField>
+
+<ResponseField name="sources" type="object" required>
+  Current record counts for each data source.
+  <Expandable title="properties">
+    <ResponseField name="flights" type="number">Number of commercial flights currently tracked.</ResponseField>
+    <ResponseField name="military" type="number">Number of military aircraft.</ResponseField>
+    <ResponseField name="ships" type="number">Number of AIS vessel positions.</ResponseField>
+    <ResponseField name="satellites" type="number">Number of satellite positions computed.</ResponseField>
+    <ResponseField name="earthquakes" type="number">Number of recent earthquake events.</ResponseField>
+    <ResponseField name="cctv" type="number">Number of live CCTV camera positions.</ResponseField>
+    <ResponseField name="news" type="number">Number of news items in the current cluster.</ResponseField>
+    <ResponseField name="uavs" type="number">Number of detected UAV positions.</ResponseField>
+    <ResponseField name="firms_fires" type="number">Number of active fire detections from FIRMS.</ResponseField>
+    <ResponseField name="liveuamap" type="number">Number of LiveUAMap conflict events.</ResponseField>
+    <ResponseField name="gdelt" type="number">Number of GDELT geopolitical features.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="freshness" type="object" required>
+  ISO 8601 timestamp per data source indicating when it was last successfully fetched. Keys match source names (e.g. `"flights"`, `"ships"`, `"news"`).
+</ResponseField>
+
+<ResponseField name="uptime_seconds" type="number" required>
+  Total seconds the server process has been running since last start.
+</ResponseField>
+
+## Example
+
+```bash
+curl http://localhost:8000/api/health
+```
+
+<ResponseExample>
+
+```json 200
+{
+  "status": "ok",
+  "last_updated": "2024-01-15T12:00:05",
+  "sources": {
+    "flights": 3241,
+    "military": 87,
+    "ships": 12450,
+    "satellites": 1823,
+    "earthquakes": 142,
+    "cctv": 956,
+    "news": 48,
+    "uavs": 3,
+    "firms_fires": 720,
+    "liveuamap": 15,
+    "gdelt": 300
+  },
+  "freshness": {
+    "flights": "2024-01-15T12:00:00",
+    "ships": "2024-01-15T12:00:01",
+    "satellites": "2024-01-15T12:00:02",
+    "news": "2024-01-15T11:55:10",
+    "earthquakes": "2024-01-15T11:55:11"
+  },
+  "uptime_seconds": 86412
+}
+```
+
+</ResponseExample>

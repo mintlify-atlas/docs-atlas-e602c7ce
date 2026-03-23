@@ -1,122 +1,94 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "ShadowBroker",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#00FF88",
+    "light": "#00CC66",
+    "dark": "#003322"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/markwjkelly/Shadowbroker"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/markwjkelly/Shadowbroker"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart", "deployment/docker", "deployment/kubernetes"]
+          },
+          {
+            "group": "Configuration",
+            "pages": ["configuration/environment-variables", "configuration/api-keys", "configuration/news-feeds"]
+          },
+          {
+            "group": "Data Layers",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "layers/overview",
+              "layers/aviation",
+              "layers/maritime",
+              "layers/satellites",
+              "layers/geopolitics",
+              "layers/satellite-imagery",
+              "layers/sdr-radio",
+              "layers/surveillance",
+              "layers/environmental",
+              "layers/signal-intelligence"
             ]
           },
           {
-            "group": "Customization",
-            "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
+            "group": "Architecture",
+            "pages": ["architecture/overview", "architecture/backend", "architecture/frontend", "architecture/performance"]
           },
           {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
-            ]
+            "group": "Self-Hosting",
+            "pages": ["self-hosting/portainer", "self-hosting/local-ais", "self-hosting/updating"]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
-            "pages": [
-              "api-reference/introduction"
-            ]
+            "group": "Overview",
+            "pages": ["api/overview"]
           },
           {
-            "group": "Endpoint examples",
-            "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
-            ]
+            "group": "Live Data",
+            "pages": ["api/live-data-fast", "api/live-data-slow", "api/refresh"]
+          },
+          {
+            "group": "Intelligence",
+            "pages": ["api/region-dossier", "api/sentinel2", "api/flight-route"]
+          },
+          {
+            "group": "Radio",
+            "pages": ["api/radio"]
+          },
+          {
+            "group": "AIS",
+            "pages": ["api/ais-feed", "api/viewport"]
+          },
+          {
+            "group": "Settings",
+            "pages": ["api/settings-api-keys", "api/settings-news-feeds"]
+          },
+          {
+            "group": "System",
+            "pages": ["api/health", "api/system-update"]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

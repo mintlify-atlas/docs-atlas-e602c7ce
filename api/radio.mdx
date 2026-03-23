@@ -1,0 +1,228 @@
+---
+title: 'Radio'
+description: 'Radio intercept endpoints — Broadcastify top feeds and OpenMHz trunked radio system lookups.'
+---
+
+Five endpoints expose live radio scanner data from Broadcastify and OpenMHz.
+
+## GET /api/radio/top
+
+Returns the current Broadcastify Top 50 live audio feeds, scraped and cached for 5 minutes.
+
+<Info>
+Rate limit: **30 requests per minute** per IP.
+</Info>
+
+### Response
+
+An array of feed objects:
+
+<ResponseField name="id" type="string" required>
+  Broadcastify feed ID. Used to construct the stream URL.
+</ResponseField>
+
+<ResponseField name="listeners" type="number" required>
+  Current listener count.
+</ResponseField>
+
+<ResponseField name="location" type="string" required>
+  Geographic location label (e.g. `"Los Angeles, CA"`).
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Feed name (e.g. `"LAPD Central Bureau"`).
+</ResponseField>
+
+<ResponseField name="category" type="string" required>
+  Feed category (e.g. `"Police"`)
+</ResponseField>
+
+<ResponseField name="stream_url" type="string" required>
+  Direct MP3/AAC stream URL: `https://broadcastify.cdnstream1.com/{id}`
+</ResponseField>
+
+### Example
+
+```bash
+curl http://localhost:8000/api/radio/top
+```
+
+<ResponseExample>
+
+```json 200
+[
+  {
+    "id": "12345",
+    "listeners": 842,
+    "location": "Los Angeles, CA",
+    "name": "LAPD Central Bureau",
+    "category": "Police",
+    "stream_url": "https://broadcastify.cdnstream1.com/12345"
+  }
+]
+```
+
+</ResponseExample>
+
+---
+
+## GET /api/radio/openmhz/systems
+
+Returns the full directory of OpenMHz trunked radio systems (450+ entries). Results are cached for 1 hour.
+
+<Info>
+Rate limit: **30 requests per minute** per IP.
+</Info>
+
+### Example
+
+```bash
+curl http://localhost:8000/api/radio/openmhz/systems
+```
+
+<ResponseExample>
+
+```json 200
+[
+  {
+    "id": "wmata",
+    "name": "WMATA Metro",
+    "lat": 38.9,
+    "lng": -77.0,
+    "state": "Maryland"
+  }
+]
+```
+
+</ResponseExample>
+
+---
+
+## GET /api/radio/openmhz/calls/{sys_name}
+
+Returns recent trunked radio call recordings (`.m4a` audio bursts) for a specific OpenMHz system. Results are cached for 20 seconds.
+
+<Info>
+Rate limit: **60 requests per minute** per IP.
+</Info>
+
+### Path parameters
+
+<ParamField path="sys_name" type="string" required>
+  OpenMHz system short name (e.g. `wmata`, `sfpd`). Obtain the full list from `/api/radio/openmhz/systems`.
+</ParamField>
+
+### Example
+
+```bash
+curl http://localhost:8000/api/radio/openmhz/calls/wmata
+```
+
+<ResponseExample>
+
+```json 200
+[
+  {
+    "id": "call_abc123",
+    "url": "https://calls.openmhz.com/wmata/calls/call_abc123.m4a",
+    "time": "2024-01-15T12:00:45Z",
+    "talkgroup": 1001,
+    "talkgroup_description": "Metro Operations"
+  }
+]
+```
+
+</ResponseExample>
+
+---
+
+## GET /api/radio/nearest
+
+Finds the single closest OpenMHz trunked system to the given coordinates using Haversine distance.
+
+<Info>
+Rate limit: **60 requests per minute** per IP.
+</Info>
+
+### Query parameters
+
+<ParamField query="lat" type="number" required>
+  Latitude in decimal degrees (−90 to 90).
+</ParamField>
+
+<ParamField query="lng" type="number" required>
+  Longitude in decimal degrees (−180 to 180).
+</ParamField>
+
+### Example
+
+```bash
+curl "http://localhost:8000/api/radio/nearest?lat=38.9&lng=-77.0"
+```
+
+<ResponseExample>
+
+```json 200
+{
+  "id": "wmata",
+  "name": "WMATA Metro",
+  "lat": 38.9,
+  "lng": -77.0,
+  "distance_miles": 0.4
+}
+```
+
+</ResponseExample>
+
+---
+
+## GET /api/radio/nearest-list
+
+Returns up to 20 nearest OpenMHz systems sorted by distance from the given coordinates.
+
+<Info>
+Rate limit: **60 requests per minute** per IP.
+</Info>
+
+### Query parameters
+
+<ParamField query="lat" type="number" required>
+  Latitude in decimal degrees (−90 to 90).
+</ParamField>
+
+<ParamField query="lng" type="number" required>
+  Longitude in decimal degrees (−180 to 180).
+</ParamField>
+
+<ParamField query="limit" type="number" default="5">
+  Maximum number of systems to return. Accepts 1–20.
+</ParamField>
+
+### Example
+
+```bash
+curl "http://localhost:8000/api/radio/nearest-list?lat=38.9&lng=-77.0&limit=5"
+```
+
+<ResponseExample>
+
+```json 200
+[
+  {
+    "id": "wmata",
+    "name": "WMATA Metro",
+    "lat": 38.9,
+    "lng": -77.0,
+    "distance_miles": 0.4
+  },
+  {
+    "id": "pg_county",
+    "name": "Prince George's County MD",
+    "lat": 38.85,
+    "lng": -76.87,
+    "distance_miles": 8.2
+  }
+]
+```
+
+</ResponseExample>

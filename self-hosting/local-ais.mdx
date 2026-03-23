@@ -1,0 +1,101 @@
+---
+title: "Local AIS receiver"
+description: "Feed real-time vessel data from a local RTL-SDR dongle into ShadowBroker using AIS-catcher — no API key required."
+---
+
+ShadowBroker normally receives AIS vessel positions via the [aisstream.io](https://aisstream.io) WebSocket, which requires an API key. With an RTL-SDR dongle and AIS-catcher, you can also feed locally decoded AIS signals directly into the backend. Vessels in your reception range appear on the map alongside the global stream.
+
+<Note>
+  **Required hardware:** An RTL-SDR USB dongle (e.g. RTL-SDR Blog V3 or compatible). For best results, use a dedicated marine VHF antenna. A standard telescoping antenna will work at reduced range.
+</Note>
+
+## How it works
+
+AIS vessels broadcast position reports on VHF channels 161.975 MHz and 162.025 MHz. AIS-catcher decodes these signals from your SDR dongle and POSTs the decoded NMEA/JSON data to ShadowBroker's `/api/ais/feed` endpoint every 10 seconds. The backend merges locally received vessels with the global AIS stream.
+
+This setup is useful for:
+- Covering vessels in harbors or anchorages that are close to shore but not yet visible in the global feed
+- Operating in offline or restricted-network environments
+- Increasing update frequency for vessels in your immediate area
+
+## Install AIS-catcher
+
+<Steps>
+  <Step title="Plug in your RTL-SDR dongle">
+    Connect your RTL-SDR dongle to a USB port. On Linux, verify the device is recognized:
+
+    ```bash
+    lsusb
+    ```
+
+    You should see a device such as `Realtek Semiconductor Corp. RTL2838 DVB-T`.
+  </Step>
+  <Step title="Run AIS-catcher">
+    Choose Docker or the native binary based on your platform.
+
+    <CodeGroup>
+
+    ```bash Docker
+    docker run -d --device /dev/bus/usb \
+      ghcr.io/jvde-github/ais-catcher \
+      -H http://host.docker.internal:4000/api/ais/feed interval 10
+    ```
+
+    ```bash Native
+    AIS-catcher -H http://localhost:4000/api/ais/feed interval 10
+    ```
+
+    </CodeGroup>
+
+    - The `-H` flag tells AIS-catcher to POST decoded vessel data to the ShadowBroker backend over HTTP.
+    - `interval 10` sends data every 10 seconds.
+    - In the Docker command, `host.docker.internal` resolves to the host machine. If that hostname is not available on your system (common on Linux), replace it with your host's LAN IP address.
+
+    Download the native binary for your platform from the [AIS-catcher releases page](https://github.com/jvde-github/AIS-catcher/releases).
+  </Step>
+  <Step title="Confirm vessels are appearing">
+    Open the ShadowBroker dashboard and enable the **Carriers / Mil / Cargo** or **Civilian Vessels** layer. Vessels received by your SDR antenna will appear with real-time positions from your local feed.
+
+    You can also check the backend logs to confirm data is being received:
+
+    ```bash
+    docker compose logs -f backend
+    ```
+
+    Look for log lines referencing the `/api/ais/feed` endpoint.
+  </Step>
+</Steps>
+
+## ARM and Raspberry Pi
+
+For ARM hardware such as a Raspberry Pi, use [docker-shipfeeder](https://github.com/sdr-enthusiasts/docker-shipfeeder), a production-ready Docker image optimized for ARM that includes RTL-SDR drivers and can forward decoded AIS data to ShadowBroker's feed endpoint.
+
+```bash
+docker run -d \
+  --device /dev/bus/usb \
+  --restart unless-stopped \
+  ghcr.io/sdr-enthusiasts/docker-shipfeeder
+```
+
+Configure docker-shipfeeder to forward NMEA data to `http://<shadowbroker-host>:4000/api/ais/feed`.
+
+## The /api/ais/feed endpoint
+
+AIS-catcher POSTs JSON-encoded AIS messages to `POST /api/ais/feed`. The backend accepts standard AIS-catcher HTTP output format, merges the vessel positions into the in-memory AIS store, and serves them on the next frontend poll.
+
+If ShadowBroker is running on a different machine than AIS-catcher, replace `localhost` with the backend host's IP address or hostname. Port 4000 is the backend's external port when using the default `docker-compose.yml` configuration (mapped from internal port 8000).
+
+<Note>
+  When running via Docker Compose, the backend is accessible on port 8000 of the host by default. If you have changed the port mapping, adjust the feed URL accordingly.
+</Note>
+
+## Range expectations
+
+AIS range depends on your antenna and its height above sea level:
+
+| Setup | Typical range |
+|---|---|
+| Basic RTL-SDR with stock telescoping antenna | 20–40 nautical miles |
+| Marine VHF antenna at elevation (rooftop, mast) | 60+ nautical miles |
+
+AIS is a line-of-sight VHF signal. Antenna height has a larger impact on range than antenna gain. Mounting the antenna outdoors and as high as practical will significantly increase coverage.

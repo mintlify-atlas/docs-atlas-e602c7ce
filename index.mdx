@@ -1,97 +1,78 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "ShadowBroker"
+description: "Real-time, multi-domain OSINT dashboard — track aircraft, ships, satellites, conflict zones, and more in one unified interface."
 ---
 
-## Setting up
-
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Deploy ShadowBroker in minutes with Docker or Podman.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Data Layers" icon="layer-group" href="/layers/overview">
+    Explore all 20+ intelligence layers available in the dashboard.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Integrate with the ShadowBroker REST API from your own tools.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Understand how the backend scheduler and frontend map work together.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What is ShadowBroker?
 
-Everything you need to create world-class documentation.
+ShadowBroker is a self-hosted, real-time geospatial intelligence platform that aggregates dozens of public open-source data feeds into a single dark-ops map interface. It is built for analysts, researchers, and enthusiasts who want a single-pane-of-glass view of global activity.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+A surprising amount of global telemetry is already public — aircraft ADS-B broadcasts, maritime AIS signals, satellite orbital data, earthquake sensors, and environmental monitoring networks. ShadowBroker brings them together.
 
-## Need inspiration?
+<Note>
+  ShadowBroker is built entirely on publicly available, open-source intelligence (OSINT) data. No classified, restricted, or non-public data sources are used. No user data is collected or transmitted — the dashboard runs entirely in your browser against a self-hosted backend.
+</Note>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+## Key capabilities
+
+<CardGroup cols={3}>
+  <Card title="Aviation" icon="plane" href="/layers/aviation">
+    Commercial, private, military, and tracked aircraft via ADS-B with holding-pattern detection and flight trail accumulation.
+  </Card>
+  <Card title="Maritime" icon="ship" href="/layers/maritime">
+    25,000+ vessels via AIS WebSocket stream, US Navy carrier strike group tracker, and superyacht monitoring.
+  </Card>
+  <Card title="Satellites" icon="satellite" href="/layers/satellites">
+    2,000+ orbital assets with real-time SGP4 propagation, classified by mission type.
+  </Card>
+  <Card title="Geopolitics" icon="globe" href="/layers/geopolitics">
+    GDELT conflict events, live Ukraine frontline, and region intelligence dossiers on right-click.
+  </Card>
+  <Card title="Signal Intelligence" icon="signal" href="/layers/signal-intelligence">
+    GPS jamming zone detection via NAC-P degradation analysis with grid-based severity mapping.
+  </Card>
+  <Card title="Environmental" icon="fire" href="/layers/environmental">
+    NASA FIRMS fire hotspots, NOAA space weather, IODA internet outage monitoring, and USGS earthquakes.
+  </Card>
+  <Card title="Satellite Imagery" icon="satellite-dish" href="/layers/satellite-imagery">
+    NASA GIBS MODIS Terra daily imagery, Esri sub-meter basemap, and on-demand Sentinel-2 intel cards.
+  </Card>
+  <Card title="SDR Radio" icon="radio" href="/layers/sdr-radio">
+    500+ KiwiSDR public receivers plotted worldwide with embedded live radio tuner.
+  </Card>
+  <Card title="Surveillance" icon="camera" href="/layers/surveillance">
+    2,000+ CCTV feeds from London, NYC, Austin, Singapore, and custom sources.
+  </Card>
+</CardGroup>
+
+## Technology stack
+
+ShadowBroker is built with **Next.js** and **MapLibre GL** on the frontend, and **FastAPI** with Python on the backend. The backend runs a recurring scheduler that fetches, normalizes, and caches data from all sources, serving the frontend via a compressed REST API.
+
+<CardGroup cols={2}>
+  <Card title="Docker deployment" icon="docker" href="/deployment/docker">
+    Single-command deployment with Docker Compose or Podman.
+  </Card>
+  <Card title="Kubernetes / Helm" icon="dharmachakra" href="/deployment/kubernetes">
+    High-availability deployment with Helm chart for home-lab clusters.
+  </Card>
+</CardGroup>
+
+## License
+
+ShadowBroker is released under the [AGPL-3.0 license](https://github.com/markwjkelly/Shadowbroker/blob/main/LICENSE). It is designed for educational and personal research use. See individual API provider terms of service for data usage restrictions.

@@ -1,0 +1,83 @@
+---
+title: 'Flight route'
+description: 'GET /api/route/{callsign} — resolve origin and destination airports for an ICAO flight callsign.'
+---
+
+`GET /api/route/{callsign}`
+
+Looks up the origin and destination airports for an active flight using the [adsb.lol routeset API](https://api.adsb.lol/). Returns coordinates and names for both endpoints, suitable for drawing a great-circle arc on the map.
+
+<Info>
+Rate limit: **60 requests per minute** per IP.
+</Info>
+
+## Path parameters
+
+<ParamField path="callsign" type="string" required>
+  ICAO flight callsign (e.g. `BAW123`, `UAL456`). Case-insensitive.
+</ParamField>
+
+## Query parameters
+
+<ParamField query="lat" type="number" default="0.0">
+  Current latitude of the aircraft. Used by adsb.lol for nearest-airport resolution when the callsign matches multiple routes. Optional.
+</ParamField>
+
+<ParamField query="lng" type="number" default="0.0">
+  Current longitude of the aircraft. Optional.
+</ParamField>
+
+## Response
+
+Returns an object with route details when a route is found, or an empty object `{}` when no route is available for the callsign.
+
+<ResponseField name="orig_loc" type="number[]">
+  Origin airport coordinates as `[longitude, latitude]` (GeoJSON order).
+</ResponseField>
+
+<ResponseField name="dest_loc" type="number[]">
+  Destination airport coordinates as `[longitude, latitude]`.
+</ResponseField>
+
+<ResponseField name="origin_name" type="string">
+  Origin airport label in `"IATA: Name"` or `"ICAO: Name"` format (e.g. `"LHR: London Heathrow"`).
+</ResponseField>
+
+<ResponseField name="dest_name" type="string">
+  Destination airport label in the same format.
+</ResponseField>
+
+<Note>
+Returns an empty object `{}` when adsb.lol has no route data for the callsign. This is common for military, charter, or unscheduled flights.
+</Note>
+
+## Example
+
+<CodeGroup>
+
+```bash With aircraft position
+curl "http://localhost:8000/api/route/BAW123?lat=51.47&lng=-0.46"
+```
+
+```bash Without position
+curl http://localhost:8000/api/route/BAW123
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json 200 — route found
+{
+  "orig_loc": [-0.4543, 51.4775],
+  "dest_loc": [-73.7789, 40.6398],
+  "origin_name": "LHR: London Heathrow",
+  "dest_name": "JFK: John F Kennedy Intl"
+}
+```
+
+```json 200 — no route
+{}
+```
+
+</ResponseExample>

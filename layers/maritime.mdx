@@ -1,0 +1,102 @@
+---
+title: "Maritime tracking"
+description: "25,000+ AIS vessels via real-time WebSocket stream, US Navy carrier strike group tracker, superyacht monitoring, and clustered ship display."
+---
+
+The maritime layers display real-time vessel positions from the global AIS (Automatic Identification System) radio network, supplemented by OSINT-estimated positions for US Navy carrier strike groups.
+
+## AIS vessel stream
+
+The backend connects to the **aisstream.io WebSocket** at `wss://stream.aisstream.io/v0/stream` and maintains a live in-memory dictionary of vessel positions. The stream processes **PositionReport**, **StandardClassBPositionReport**, and **ShipStaticData** message types.
+
+The connection runs in a dedicated background thread (`ais-stream`) and uses exponential backoff (1s → 60s max) to recover from disconnections. The vessel dictionary is persisted to `ais_cache.json` every 60 seconds and reloaded on restart — vessels up to one hour old are accepted from cache to avoid a cold start.
+
+<Info>
+  The aisstream.io API key (`AIS_API_KEY`) is required for maritime tracking. You can get a free key at [aisstream.io](https://aisstream.io).
+</Info>
+
+### Scale
+
+- **25,000+ vessels** tracked simultaneously
+- Vessels are pruned from memory after **15 minutes** without a position update
+- Coordinates are rounded to 5 decimal places (~1 meter precision) to reduce JSON payload size
+- Flag state is derived from the vessel's MMSI Maritime Identification Digit (MID) — the first three digits of a 9-digit MMSI encode the registering country
+
+## Vessel classification
+
+Each vessel is classified by its AIS type code according to the [NOAA VesselTypeCodes2018](https://coast.noaa.gov/data/marinecadastre/ais/VesselTypeCodes2018.pdf) standard:
+
+| Type | AIS codes | Display color |
+|---|---|---|
+| Tanker | 80–89 | Red |
+| Cargo | 70–79 | Red |
+| Passenger | 60–69 | Gray |
+| Yacht / pleasure craft | 36, 37 | Dark blue |
+| Military vessel | 35, or MMSI prefix `3380`/`3381` | Yellow |
+| Other (fishing, tug, pilot, SAR) | 30–34, 50–59 | Hidden by default |
+
+"Other" type vessels (fishing boats, tugs, pilot vessels, SAR craft) are excluded from the default rendered set to reduce rendering load. They can be shown via the **Civilian Vessels** layer toggle.
+
+## Sub-layers
+
+### Carriers / Mil / Cargo
+
+The primary maritime layer. Shows US Navy carriers (OSINT-estimated), military vessels, cargo ships, and tankers.
+
+### Cruise / Passenger
+
+Dedicated layer for cruise liners and passenger ferries (AIS type codes 60–69). Rendered separately to allow analysts to isolate passenger ship movements.
+
+### Civilian vessels
+
+Off by default. Shows yachts, fishing vessels, and recreational craft. Enabling this layer adds significant marker density, particularly in coastal areas.
+
+### Tracked yachts
+
+A curated list of superyachts cross-referenced against the **Yacht-Alert database** to surface ownership information for vessels associated with billionaires, oligarchs, and other high-profile individuals. Enabled by default.
+
+## Carrier Strike Group tracker
+
+The Carrier Strike Group (CSG) tracker maintains OSINT-estimated positions for all **11 active US Navy aircraft carriers**. It does not use AIS data — carrier positions are estimated from open-source reporting.
+
+### How positions are determined
+
+The tracker operates in two phases on startup and again at **00:00 and 12:00 UTC** each day:
+
+1. **Phase 1 (instant):** Loads static fallback positions sourced from the [USNI News Fleet & Marine Tracker](https://news.usni.org/category/fleet-tracker) and any previously cached GDELT-derived positions from `carrier_cache.json`.
+2. **Phase 2 (enrichment):** Queries the GDELT News API for recent carrier movement headlines using 13 search terms (e.g., `aircraft+carrier+deployed`, `USS+Ford+carrier`). Article titles are matched against the carrier registry and against 50+ geographic region-to-coordinate mappings (seas, straits, ports, and fleet areas) to extract current operating area.
+
+### Tracked carriers
+
+| Hull | Name | Homeport |
+|---|---|---|
+| CVN-68 | USS Nimitz | Bremerton, WA |
+| CVN-69 | USS Dwight D. Eisenhower | Norfolk, VA |
+| CVN-70 | USS Carl Vinson | San Diego, CA |
+| CVN-71 | USS Theodore Roosevelt | San Diego, CA |
+| CVN-72 | USS Abraham Lincoln | San Diego, CA |
+| CVN-73 | USS George Washington | Yokosuka, Japan |
+| CVN-74 | USS John C. Stennis | Norfolk, VA |
+| CVN-75 | USS Harry S. Truman | Norfolk, VA |
+| CVN-76 | USS Ronald Reagan | Bremerton, WA |
+| CVN-77 | USS George H.W. Bush | Norfolk, VA |
+| CVN-78 | USS Gerald R. Ford | Norfolk, VA |
+
+### Position deconfliction
+
+When multiple carriers share the same estimated coordinates (e.g., multiple ships in port at Norfolk), the tracker applies a deconfliction algorithm:
+
+- **At port:** Each carrier is offset to its distinct homeport pier coordinate so markers do not stack.
+- **At sea:** Carriers in the same operating area are spread ~0.08° (~9 km) apart perpendicular to their axis so they are visibly separate but clearly operating together.
+
+<Note>
+  Carrier positions are estimates based on open-source reporting. The `estimated: true` flag is always set on carrier features. Heading is not available from OSINT sources.
+</Note>
+
+## Clustered display
+
+At low zoom levels, ships are clustered with a count label to keep the map readable. Clusters automatically decluster as you zoom in. Green cluster badges show the number of vessels in each cluster.
+
+## Local AIS receiver
+
+You can supplement the global aisstream.io feed with your own RTL-SDR dongle running **AIS-catcher**, which decodes VHF radio signals on 161.975 MHz and 162.025 MHz. Ships detected by your local antenna appear alongside the global stream in real time. See the [local AIS receiver](/self-hosting/local-ais) guide for setup instructions.

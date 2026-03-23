@@ -1,0 +1,162 @@
+---
+title: 'Live data (slow)'
+description: 'GET /api/live-data/slow — contextual data refreshed every 5 minutes: news, weather, earthquakes, frontlines, stocks, fires, infrastructure.'
+---
+
+`GET /api/live-data/slow`
+
+Returns contextual and enrichment data that refreshes every 5 minutes. Supports optional bounding-box filtering for geospatial datasets.
+
+<Info>
+Rate limit: **60 requests per minute** per IP.
+</Info>
+
+## Query parameters
+
+<ParamField query="s" type="number">
+  South bound of the bounding box (latitude, −90 to 90). All four bbox parameters must be provided together for filtering to apply.
+</ParamField>
+
+<ParamField query="w" type="number">
+  West bound of the bounding box (longitude, −180 to 180).
+</ParamField>
+
+<ParamField query="n" type="number">
+  North bound of the bounding box (latitude, −90 to 90).
+</ParamField>
+
+<ParamField query="e" type="number">
+  East bound of the bounding box (longitude, −180 to 180).
+</ParamField>
+
+## Response
+
+<ResponseField name="last_updated" type="string">
+  ISO 8601 UTC timestamp of the last full data update.
+</ResponseField>
+
+<ResponseField name="news" type="object[]">
+  Clustered RSS news items with risk scores and coordinates. Always returned in full.
+</ResponseField>
+
+<ResponseField name="stocks" type="object">
+  Defense sector stock prices keyed by ticker symbol.
+</ResponseField>
+
+<ResponseField name="oil" type="object">
+  Current Brent and WTI crude oil prices.
+</ResponseField>
+
+<ResponseField name="weather" type="object">
+  Global weather radar data from RainViewer.
+</ResponseField>
+
+<ResponseField name="traffic" type="object[]">
+  Traffic incident data.
+</ResponseField>
+
+<ResponseField name="earthquakes" type="object[]">
+  Recent earthquake events from USGS. Filtered by bbox when provided.
+</ResponseField>
+
+<ResponseField name="frontlines" type="object">
+  GeoJSON polygon data for active conflict frontlines. Always returned in full (not bbox-filterable).
+</ResponseField>
+
+<ResponseField name="gdelt" type="object[]">
+  GDELT geopolitical event features. Always returned in full — filtered client-side.
+</ResponseField>
+
+<ResponseField name="airports" type="object[]">
+  Global airport reference data. Always returned in full.
+</ResponseField>
+
+<ResponseField name="kiwisdr" type="object[]">
+  KiwiSDR receiver locations. Filtered by bbox (uses `lat`/`lon` keys).
+</ResponseField>
+
+<ResponseField name="space_weather" type="object">
+  Solar wind and geomagnetic storm indices.
+</ResponseField>
+
+<ResponseField name="internet_outages" type="object[]">
+  Active internet outage reports. Filtered by bbox.
+</ResponseField>
+
+<ResponseField name="firms_fires" type="object[]">
+  NASA FIRMS active fire detections. Filtered by bbox.
+</ResponseField>
+
+<ResponseField name="datacenters" type="object[]">
+  Known data center locations. Filtered by bbox.
+</ResponseField>
+
+<ResponseField name="military_bases" type="object[]">
+  Known military base locations. Filtered by bbox.
+</ResponseField>
+
+<ResponseField name="power_plants" type="object[]">
+  Power plant locations and types. Filtered by bbox.
+</ResponseField>
+
+<ResponseField name="freshness" type="object">
+  ISO 8601 timestamp for each data source indicating when it was last successfully fetched.
+</ResponseField>
+
+## ETag caching
+
+This endpoint returns an `ETag` header. The ETag incorporates the payload hash and bbox parameters. Send `If-None-Match: <etag>` on subsequent requests to receive `HTTP 304 Not Modified` when data is unchanged.
+
+## Examples
+
+<CodeGroup>
+
+```bash Full world
+curl http://localhost:8000/api/live-data/slow
+```
+
+```bash With bounding box
+curl "http://localhost:8000/api/live-data/slow?s=35.0&w=25.0&n=42.0&e=45.0"
+```
+
+```bash With ETag caching
+curl -i http://localhost:8000/api/live-data/slow
+# Captures: ETag: 9f8e7d6c5b4a
+
+curl -i -H "If-None-Match: 9f8e7d6c5b4a" http://localhost:8000/api/live-data/slow
+# Returns 304 if data unchanged
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json 200
+{
+  "last_updated": "2024-01-15T12:05:00",
+  "news": [
+    {
+      "title": "Example headline",
+      "url": "https://example.com/article",
+      "lat": 35.6,
+      "lng": 139.7,
+      "risk_score": 3
+    }
+  ],
+  "stocks": {
+    "LMT": { "price": 450.12, "change": 1.5 }
+  },
+  "oil": {
+    "brent": 82.45,
+    "wti": 78.30
+  },
+  "earthquakes": [],
+  "firms_fires": [],
+  "freshness": {
+    "news": "2024-01-15T12:05:00",
+    "earthquakes": "2024-01-15T12:05:01"
+  }
+}
+```
+
+</ResponseExample>

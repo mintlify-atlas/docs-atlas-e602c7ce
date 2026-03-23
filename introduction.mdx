@@ -1,0 +1,103 @@
+---
+title: Introduction
+description: ShadowBroker is a real-time, multi-domain OSINT dashboard that aggregates live data from dozens of open-source intelligence feeds onto a unified geospatial map interface.
+---
+
+ShadowBroker aggregates publicly available global telemetry — aircraft ADS-B broadcasts, maritime AIS signals, satellite orbital data, seismic sensors, conflict event feeds, and more — into a single dark-ops map interface. It is designed for analysts, researchers, and enthusiasts who want a single-pane-of-glass view of global activity.
+
+A surprising amount of global intelligence is already public. It is scattered across dozens of APIs and tools. ShadowBroker brings it together.
+
+<Note>
+  ShadowBroker is built entirely on publicly available, open-source intelligence (OSINT) data. No classified, restricted, or non-public data sources are used. No user data is collected or transmitted — the dashboard runs entirely in your browser against a self-hosted backend.
+</Note>
+
+## Why it exists
+
+The following signals are freely available on the public internet:
+
+- Aircraft ADS-B position broadcasts
+- Maritime AIS vessel positions
+- Satellite orbital elements (TLE data)
+- USGS earthquake feeds
+- GDELT global conflict event aggregation
+- Environmental monitoring networks
+
+ShadowBroker does not introduce new surveillance capabilities. It aggregates and visualizes existing public datasets in a single interface. The project is fully open-source so anyone can audit exactly what data is accessed and how.
+
+## Key use cases
+
+- Track commercial airlines, private jets, and military aircraft in real time
+- Monitor US Navy carrier strike group positions using OSINT-estimated coordinates
+- Watch satellites passing overhead and identify them by mission type
+- Detect GPS jamming zones from NAC-P degradation in ADS-B data
+- Follow earthquake and fire activity from NASA and USGS feeds
+- Monitor regional internet outages via Georgia Tech IODA
+- Browse 2,000+ live CCTV feeds from cities worldwide
+- Listen to public SDR radio receivers via the embedded KiwiSDR tuner
+
+## Supported data layers
+
+<CardGroup cols={3}>
+  <Card title="Aviation" icon="plane" href="/layers/aviation">
+    Commercial, private, military, and tracked aircraft via ADS-B. Includes holding-pattern detection, flight trail accumulation, and shape-accurate SVG icons.
+  </Card>
+  <Card title="Maritime" icon="ship" href="/layers/maritime">
+    25,000+ vessels via AIS WebSocket stream. Includes carrier strike group tracker, superyacht monitoring, and clustered map rendering.
+  </Card>
+  <Card title="Satellites" icon="satellite" href="/layers/satellites">
+    2,000+ orbital assets with real-time SGP4 propagation from CelesTrak TLE data. Color-coded by mission type: recon, SAR, SIGINT, navigation, and more.
+  </Card>
+  <Card title="Geopolitics" icon="globe" href="/layers/geopolitics">
+    GDELT conflict events (last 8 hours), live Ukraine frontline from DeepState Map, and right-click region intelligence dossiers.
+  </Card>
+  <Card title="Signal intelligence" icon="signal" href="/layers/signal-intelligence">
+    GPS jamming zone detection using aircraft NAC-P degradation analysis. Grid-based aggregation with severity labels.
+  </Card>
+  <Card title="Environmental" icon="fire" href="/layers/environmental">
+    NASA FIRMS fire hotspots (NOAA-20 VIIRS), NOAA space weather Kp index, IODA internet outage alerts, and USGS earthquakes.
+  </Card>
+  <Card title="Satellite imagery" icon="satellite-dish" href="/layers/satellite-imagery">
+    NASA GIBS MODIS Terra daily imagery with 30-day time slider, Esri sub-meter basemap, and on-demand Sentinel-2 intel cards.
+  </Card>
+  <Card title="SDR radio" icon="radio" href="/layers/sdr-radio">
+    500+ KiwiSDR public receivers plotted worldwide. Click any node to open an embedded live SDR tuner in the SIGINT panel.
+  </Card>
+  <Card title="Surveillance" icon="camera" href="/layers/surveillance">
+    2,000+ CCTV feeds from Transport for London, NYC DOT, TxDOT Austin, Singapore LTA, and custom URL sources.
+  </Card>
+</CardGroup>
+
+## Technology stack
+
+| Layer | Technology |
+|---|---|
+| Frontend framework | Next.js 16 + React 19 |
+| Map rendering | MapLibre GL 4 (WebGL) |
+| Backend framework | FastAPI + Python |
+| Background scheduler | APScheduler |
+| Satellite propagation | SGP4 + CelesTrak TLE |
+| Container runtime | Docker / Podman |
+| Kubernetes deployment | Helm (bjw-s-labs app-template) |
+
+The backend runs a recurring data scheduler that fetches, normalizes, and caches data from all sources. The frontend polls the backend via a compressed REST API (gzip ~92% reduction) and renders data imperatively on the map, bypassing React reconciliation for high-volume layers.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Deploy ShadowBroker in under 5 minutes with Docker or Podman.
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Understand how the backend scheduler and frontend map renderer work together.
+  </Card>
+  <Card title="Data layers" icon="layer-group" href="/layers/overview">
+    Full reference for all 20+ intelligence layers and their data sources.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/environment-variables">
+    Set API keys and configure environment variables for your deployment.
+  </Card>
+</CardGroup>
+
+## License
+
+ShadowBroker is released under the [AGPL-3.0 license](https://github.com/markwjkelly/Shadowbroker/blob/main/LICENSE). It is intended for educational and personal research use. Review individual API provider terms of service for data usage restrictions.

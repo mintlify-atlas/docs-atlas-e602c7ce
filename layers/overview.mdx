@@ -1,0 +1,79 @@
+---
+title: "Data layers overview"
+description: "All 20+ intelligence layers available in ShadowBroker — what each layer shows, its data source, and how often it updates."
+---
+
+ShadowBroker aggregates data from dozens of public open-source feeds and renders them as independently toggleable map layers. Every layer can be turned on or off from the left panel without reloading the page.
+
+## Layer toggle table
+
+| Layer | Default | Description | Data source | Update frequency |
+|---|---|---|---|---|
+| Commercial Flights | On | Airlines, cargo, and GA aircraft | OpenSky Network | ~60s |
+| Private Flights | On | Non-commercial private aircraft | OpenSky Network | ~60s |
+| Private Jets | On | High-value bizjets with owner identification | OpenSky Network | ~60s |
+| Military Flights | On | Military & government aircraft — tankers, ISR, fighters, transports | adsb.lol military endpoint | ~60s |
+| Tracked Aircraft | On | Special interest watch list | OpenSky Network | ~60s |
+| Satellites | On | Orbital assets tracked by mission type | CelesTrak TLE + SGP4 | ~60s |
+| Carriers / Mil / Cargo | On | US Navy carriers, cargo ships, tankers | aisstream.io WebSocket | Real-time |
+| Civilian Vessels | Off | Yachts, fishing, and recreational craft | aisstream.io WebSocket | Real-time |
+| Cruise / Passenger | On | Cruise ships and ferries | aisstream.io WebSocket | Real-time |
+| Tracked Yachts | On | Billionaire and oligarch superyachts (Yacht-Alert DB) | aisstream.io WebSocket | Real-time |
+| Earthquakes (24h) | On | USGS real-time seismic events, magnitude-scaled | USGS Earthquake Feed | ~60s |
+| CCTV Mesh | Off | 2,000+ live traffic cameras | TfL, TxDOT, NYC DOT, Singapore LTA | ~10min |
+| Ukraine Frontline | On | Live warfront GeoJSON — occupied, advance, and liberated zones | DeepState Map (GitHub mirror) | ~30min |
+| Global Incidents | On | GDELT conflict event aggregation — last 8 hours | GDELT Project export CDN | ~15min |
+| GPS Jamming | On | NAC-P degradation zones with severity % labels | ADS-B aircraft data (derived) | ~60s |
+| MODIS Terra (Daily) | Off | NASA GIBS true-color satellite imagery — 30-day time slider | NASA GIBS | Daily |
+| High-Res Satellite | Off | Esri World Imagery sub-meter basemap (zoom 18+) | Esri World Imagery | Static |
+| KiwiSDR Receivers | Off | 500+ public SDR receivers worldwide | kiwisdr.com | ~30min |
+| Fire Hotspots (24h) | Off | NOAA-20 VIIRS thermal anomalies, color-coded by FRP | NASA FIRMS | ~120s |
+| Internet Outages | Off | Regional connectivity alerts with severity % | Georgia Tech IODA | ~120s |
+| Data Centers | Off | 2,000+ global data centers with outage cross-reference | DC Map (GitHub) | Cached 7d |
+| Day / Night Cycle | On | Solar terminator overlay showing current daylight zones | Computed (solar position) | Continuous |
+
+## Layer categories
+
+<CardGroup cols={2}>
+  <Card title="Aviation" icon="plane" href="/layers/aviation">
+    Commercial, private, military, and tracked aircraft with holding-pattern detection and flight trails.
+  </Card>
+  <Card title="Maritime" icon="ship" href="/layers/maritime">
+    25,000+ AIS vessels, US Navy carrier strike group tracker, and superyacht monitoring.
+  </Card>
+  <Card title="Satellites" icon="satellite" href="/layers/satellites">
+    2,000+ orbital assets propagated in real time via SGP4, classified by mission type.
+  </Card>
+  <Card title="Geopolitics" icon="globe" href="/layers/geopolitics">
+    GDELT conflict events, live Ukraine frontline, SIGINT news feed, and region dossiers.
+  </Card>
+  <Card title="Satellite imagery" icon="satellite-dish" href="/layers/satellite-imagery">
+    NASA MODIS Terra daily imagery, Esri sub-meter basemap, and Sentinel-2 intel cards.
+  </Card>
+  <Card title="SDR radio" icon="radio" href="/layers/sdr-radio">
+    KiwiSDR public receivers with embedded live tuner, OpenMHz trunked radio, and Broadcastify.
+  </Card>
+  <Card title="Surveillance" icon="camera" href="/layers/surveillance">
+    2,000+ CCTV feeds from London, NYC, Austin, and Singapore with automatic feed-type detection.
+  </Card>
+  <Card title="Environmental" icon="fire" href="/layers/environmental">
+    NASA FIRMS fire hotspots, space weather Kp index, IODA internet outages, and USGS earthquakes.
+  </Card>
+  <Card title="Signal intelligence" icon="signal" href="/layers/signal-intelligence">
+    GPS jamming zones derived from ADS-B NAC-P degradation analysis, plus the radio intercept panel.
+  </Card>
+</CardGroup>
+
+## API key requirements
+
+Most layers require no API key. The only key required for full functionality is the aisstream.io key for maritime tracking.
+
+| Key | Purpose | Required |
+|---|---|---|
+| `AIS_API_KEY` | Maritime vessel tracking via aisstream.io WebSocket | Yes |
+| `OPENSKY_CLIENT_ID` / `OPENSKY_CLIENT_SECRET` | Higher rate limits for flight data | Optional |
+| `LTA_ACCOUNT_KEY` | Singapore LTA CCTV cameras | Optional |
+
+<Note>
+  Layers that use no API key — satellites, earthquakes, NASA FIRMS, KiwiSDR, GDELT, DeepState Map, and most others — are fully functional without any configuration.
+</Note>

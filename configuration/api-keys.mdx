@@ -1,0 +1,180 @@
+---
+title: "API keys"
+description: "Which data sources need API keys, how to obtain them, and how to manage them via the Settings panel or the API."
+keywords: ["api keys", "aisstream", "opensky", "lta", "admin key", "settings"]
+---
+
+ShadowBroker aggregates data from many sources. Most require no credentials, but three external services need API keys to unlock their data layers.
+
+## Data sources overview
+
+| Service | Key required | Data layer | Free tier |
+|---|---|---|---|
+| [AISStream.io](https://aisstream.io/) | Yes — `AIS_API_KEY` | Real-time vessel positions (ships layer) | Yes |
+| [OpenSky Network](https://opensky-network.org/) | Yes — `OPENSKY_CLIENT_ID` + `OPENSKY_CLIENT_SECRET` | Flight gap-fill in Africa / Asia / LatAm | Yes (400 req/day) |
+| [LTA DataMall](https://datamall.lta.gov.sg/) | Yes — `LTA_ACCOUNT_KEY` | Singapore CCTV traffic cameras | Yes |
+| ADS-B Exchange (adsb.lol) | No | Global commercial, military, and private flights | — |
+| USGS Earthquakes | No | Real-time earthquake feed | — |
+| CelesTrak | No | Satellite orbital elements (TLEs) | — |
+| GDELT Project | No | Geolocated news events | — |
+| Nominatim | No | Reverse geocoding | — |
+| RainViewer | No | Weather radar tiles | — |
+| OpenMHz | No | Public radio scanner feeds | — |
+| Yahoo Finance | No | Defense stocks and commodity prices | — |
+
+## Setting up each key
+
+### AIS Stream (required for ships layer)
+
+<Steps>
+  <Step title="Create a free account">
+    Go to [aisstream.io](https://aisstream.io/) and sign up for a free account. No credit card is required.
+  </Step>
+  <Step title="Generate a WebSocket API key">
+    After logging in, navigate to your dashboard and create a new API key. Copy the key — you will only see it once.
+  </Step>
+  <Step title="Add the key to your environment">
+    Set `AIS_API_KEY` in `backend/.env` or your Docker Compose environment:
+
+    ```bash backend/.env
+    AIS_API_KEY=your-key-here
+    ```
+  </Step>
+  <Step title="Restart the backend">
+    The AIS stream connects at startup. Restart the backend container for the key to take effect:
+
+    ```bash
+    docker compose restart backend
+    ```
+  </Step>
+</Steps>
+
+### OpenSky Network (optional — improves flight coverage)
+
+OpenSky fills in flight data in regions where ADS-B Exchange has sparse coverage. Both the client ID and client secret must be set together.
+
+<Steps>
+  <Step title="Register on OpenSky Network">
+    Create a free account at [opensky-network.org](https://opensky-network.org/). The free tier provides 400 API requests per day.
+  </Step>
+  <Step title="Create an OAuth2 application">
+    In your OpenSky dashboard, navigate to **API** → **OAuth2 Applications** and create a new application. Note the client ID and client secret.
+  </Step>
+  <Step title="Add both keys to your environment">
+    ```bash backend/.env
+    OPENSKY_CLIENT_ID=your-client-id
+    OPENSKY_CLIENT_SECRET=your-client-secret
+    ```
+  </Step>
+  <Step title="Restart the backend">
+    ```bash
+    docker compose restart backend
+    ```
+  </Step>
+</Steps>
+
+### LTA DataMall (optional — Singapore CCTV cameras)
+
+<Steps>
+  <Step title="Register for LTA DataMall access">
+    Go to [datamall.lta.gov.sg](https://datamall.lta.gov.sg/) and request API access. LTA requires a brief registration form. The key is provided free of charge.
+  </Step>
+  <Step title="Add the key to your environment">
+    ```bash backend/.env
+    LTA_ACCOUNT_KEY=your-lta-key
+    ```
+  </Step>
+  <Step title="Restart the backend">
+    ```bash
+    docker compose restart backend
+    ```
+  </Step>
+</Steps>
+
+## Managing keys via the Settings panel
+
+You can view and update API keys through the Settings panel in the dashboard UI without restarting the backend. Keys are written to `backend/.env` and take effect immediately in the running process.
+
+1. Open the dashboard and click **Settings** in the sidebar.
+2. Navigate to the **API Keys** tab.
+3. Click the edit icon next to any key.
+4. Enter the new value and click **Save**.
+
+<Note>
+  The Settings panel shows obfuscated key values — the first four characters followed by bullets. It never exposes the full key.
+</Note>
+
+## The /api/settings/api-keys endpoint
+
+You can also manage keys programmatically via the REST API.
+
+### GET /api/settings/api-keys
+
+Returns the full API registry with obfuscated values and `is_set` flags.
+
+```bash
+curl -H "X-Admin-Key: your-admin-key" http://localhost:8000/api/settings/api-keys
+```
+
+Example response:
+
+```json
+[
+  {
+    "id": "ais_api_key",
+    "name": "AIS Stream",
+    "env_key": "AIS_API_KEY",
+    "category": "Maritime",
+    "required": true,
+    "is_set": true,
+    "value_obfuscated": "abcd••••••••"
+  }
+]
+```
+
+### PUT /api/settings/api-keys
+
+Updates a single key. The key takes effect immediately without a restart.
+
+```bash
+curl -X PUT \
+  -H "X-Admin-Key: your-admin-key" \
+  -H "Content-Type: application/json" \
+  -d '{"env_key": "AIS_API_KEY", "value": "new-key-here"}' \
+  http://localhost:8000/api/settings/api-keys
+```
+
+Valid `env_key` values: `AIS_API_KEY`, `OPENSKY_CLIENT_ID`, `OPENSKY_CLIENT_SECRET`, `LTA_ACCOUNT_KEY`.
+
+## ADMIN_KEY security
+
+`ADMIN_KEY` protects the following endpoints:
+
+- `GET /api/settings/api-keys`
+- `PUT /api/settings/api-keys`
+- `GET /api/settings/news-feeds` (write operations)
+- `PUT /api/settings/news-feeds`
+- `POST /api/settings/news-feeds/reset`
+- `POST /api/system/update`
+
+Every request to these endpoints must include the header:
+
+```
+X-Admin-Key: your-admin-key
+```
+
+Requests without a valid key receive `403 Forbidden`.
+
+<Warning>
+  If `ADMIN_KEY` is not set, all protected endpoints are open to anyone who can reach the backend. The backend logs a `CRITICAL` warning at startup when this is the case. **Always set `ADMIN_KEY` in production.**
+</Warning>
+
+### Choosing an ADMIN_KEY value
+
+Use a long, random string. You can generate one with:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Set it in `backend/.env` or via Docker secrets (see [Environment variables](/configuration/environment-variables) for the `_FILE` variant).

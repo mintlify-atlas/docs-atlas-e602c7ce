@@ -1,0 +1,82 @@
+---
+title: "SDR radio"
+description: "500+ KiwiSDR public receivers plotted worldwide with embedded live tuner, plus OpenMHz trunked radio systems and Broadcastify scanner feeds."
+---
+
+The SDR radio integration brings software-defined radio capabilities directly into the SIGINT panel. It combines three sources: KiwiSDR public receivers, OpenMHz trunked radio systems, and Broadcastify scanner feeds.
+
+## KiwiSDR receivers
+
+The **KiwiSDR Receivers** layer plots 500+ public software-defined radio receivers from the [KiwiSDR network](http://kiwisdr.com) as amber markers on the map.
+
+### Data fetching
+
+The backend scrapes the KiwiSDR public listing at `http://kiwisdr.com/.public/` — receiver metadata is embedded as HTML comments inside each entry `<div>`. The scraper parses the following fields:
+
+| Field | Description |
+|---|---|
+| `name` | Node name (truncated to 120 characters) |
+| `gps` | Latitude and longitude |
+| `loc` | Location description (city, country) |
+| `antenna` | Antenna type description |
+| `bands` | Supported frequency bands |
+| `users` | Current active user count |
+| `users_max` | Maximum simultaneous users |
+| `offline` | Whether the node is offline (excluded if `yes`) |
+
+Offline nodes are filtered out before display. Results are cached for **10 minutes** (TTL cache) and re-fetched every 30 minutes via the slow-tier scheduler.
+
+### Map display
+
+- Receivers are displayed as clustered amber markers
+- Clusters show the count of receivers in the area and decluster on zoom-in
+- Clicking a marker opens the receiver's metadata in the SIGINT panel
+
+## Live radio tuner
+
+Clicking any KiwiSDR marker opens an **embedded live radio tuner** directly inside the SIGINT panel. The tuner loads the receiver's web interface in an iframe, allowing you to tune to any frequency the node supports without leaving the dashboard.
+
+### Metadata shown in the panel
+
+- Node name and location
+- Antenna type
+- Supported frequency bands
+- Current active user count vs. maximum capacity
+- Direct link to open the receiver in a new tab
+
+<Tip>
+  Receivers with low user counts relative to their maximum are more likely to be available for connection. The `users` / `users_max` values help you identify nodes with capacity.
+</Tip>
+
+## OpenMHz trunked radio
+
+[OpenMHz](https://openmhz.com) provides real-time audio captures from P25 trunked radio systems — the digital radio infrastructure used by many US public safety agencies.
+
+### How it works
+
+- The backend fetches the full directory of OpenMHz systems from `https://api.openmhz.com/systems` (cached for 1 hour)
+- When a user activates the radio panel, the backend finds the **nearest systems** by haversine distance from the user's map center
+- Recent call audio is fetched from `https://api.openmhz.com/{sys_name}/calls` (cached for 20 seconds per system to limit polling rate)
+- Audio bursts are returned as `.m4a` URLs for playback in the SIGINT panel
+
+## Broadcastify scanner feeds
+
+[Broadcastify](https://www.broadcastify.com) hosts live audio streams from thousands of public safety scanner feeds worldwide.
+
+### Top feeds
+
+The backend scrapes the **Broadcastify Top 50** live feeds page at `https://www.broadcastify.com/listen/top` and parses the feed table (cached for 5 minutes). Each feed entry includes:
+
+| Field | Description |
+|---|---|
+| Feed name | Name of the radio system or channel |
+| Location | State and city |
+| Category | Agency type (police, fire, EMS, etc.) |
+| Listener count | Current concurrent listeners |
+| Stream URL | Direct CDN stream at `https://broadcastify.cdnstream1.com/{feed_id}` |
+
+Feeds are presented in the Radio Intercept Panel with a scanner-style UI. Click any feed to begin playback.
+
+<Note>
+  The KiwiSDR layer is off by default. Enable it from the **Layers** panel to see receiver locations on the map.
+</Note>

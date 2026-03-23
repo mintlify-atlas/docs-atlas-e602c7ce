@@ -1,0 +1,87 @@
+---
+title: "Geopolitics & conflict"
+description: "GDELT conflict events, live Ukraine frontline, SIGINT/RISINT RSS news feed, and right-click region dossier with country profile and head of state."
+---
+
+The geopolitics group aggregates conflict reporting, active frontline data, and intelligence news into a unified layer set. All sources are public and require no API keys.
+
+## Global incidents (GDELT)
+
+The **Global Incidents** layer plots conflict events from the [GDELT Project](https://www.gdeltproject.org) — a real-time database of media-reported global events. ShadowBroker aggregates the **last 8 hours** of GDELT export data, downloading 32 export files (one per 15-minute interval) in parallel from the GDELT v2 export CDN.
+
+### What is shown
+
+Only events matching GDELT CAMEO conflict codes are included:
+
+| CAMEO code prefix | Event type |
+|---|---|
+| 14 | Protest, demonstrate, or rally |
+| 17 | Coerce |
+| 18 | Assault |
+| 19 | Fight |
+| 20 | Use unconventional mass violence |
+
+Events are aggregated by geographic grid cell (rounded to 0.1°). Multiple events at the same location are merged into a single marker with a count and up to 10 unique source URLs (deduplicated by domain). This typically produces **~1,000 conflict locations** from the 8-hour window.
+
+### Article title enrichment
+
+When GDELT data loads, article titles are initially derived from URL slug parsing (instant, no network). A background thread then fetches real `og:title` or `<title>` tags from up to 16 article URLs in parallel and updates the map markers in-place. This two-phase approach means the layer loads immediately while headlines improve over the next few seconds.
+
+### Update cadence
+
+GDELT data is fetched every **15 minutes** via the very-slow scheduler tier. The GDELT Project updates its export files every 15 minutes.
+
+## Ukraine frontline
+
+The **Ukraine Frontline** layer renders the current warfront as a GeoJSON polygon overlay sourced from the [cyterat/deepstate-map-data](https://github.com/cyterat/deepstate-map-data) GitHub mirror of the DeepState Map.
+
+### Zone types
+
+The GeoJSON features are indexed by position in the array, mapping to these zone types:
+
+| Index | Zone |
+|---|---|
+| 0 | Russian-occupied areas |
+| 1 | Russian advance |
+| 2 | Liberated area |
+| 3 | Russian-occupied areas (Crimea / LPR / DPR) |
+| 4 | Directions of Ukrainian attacks |
+
+### Update cadence
+
+Frontline data is cached for **30 minutes** (TTL cache) and re-fetched every 15 minutes via the scheduler. The underlying DeepState Map updates approximately every 30 minutes.
+
+<Info>
+  The backend queries the GitHub API tree to find the alphabetically latest file in the `data/` directory (named `deepstatemap_data_YYYYMMDD.geojson`), then downloads it directly from GitHub raw.
+</Info>
+
+## SIGINT/RISINT news feed
+
+The SIGINT panel on the right side of the dashboard shows a real-time RSS aggregation feed from intelligence-focused news sources.
+
+### Configuration
+
+- Up to **20 RSS sources** configurable
+- Each source has a **priority weight from 1 to 5** that influences ranking
+- Feed list persists across restarts in `backend/config/news_feeds.json`
+- Sources and weights are manageable from **Settings → News Feeds** in the dashboard UI
+
+You can add, remove, or reweight feeds without restarting the backend. See the [news feeds configuration](/configuration/news-feeds) guide.
+
+## Region dossier
+
+Right-clicking anywhere on the map opens a floating **Region Dossier** panel with intelligence about the clicked location's country:
+
+| Field | Source |
+|---|---|
+| Country name, capital, population, area | RestCountries API (cached 24h) |
+| Official languages, currencies, flag | RestCountries API (cached 24h) |
+| Government type | Wikidata SPARQL query (cached 24h) |
+| Head of state / head of government | Wikidata SPARQL query (cached 24h) |
+| Wikipedia summary and thumbnail | Wikipedia API (cached) |
+
+The right-click also triggers a **Sentinel-2 imagery search** for the clicked coordinates — if a clear scene exists within the last 30 days, a floating intel card appears showing the capture date, cloud cover %, and a link to the full-resolution image. See [satellite imagery](/layers/satellite-imagery) for details.
+
+<Tip>
+  Right-click over conflict zones, contested regions, or key geographic chokepoints to get instant country context without leaving the map.
+</Tip>

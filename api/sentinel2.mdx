@@ -1,0 +1,102 @@
+---
+title: 'Sentinel-2 imagery'
+description: 'GET /api/sentinel2/search — find the latest Sentinel-2 satellite scene for a coordinate point via Microsoft Planetary Computer.'
+---
+
+`GET /api/sentinel2/search`
+
+Searches the Microsoft Planetary Computer STAC API for the most recent Sentinel-2 L2A scene covering the given point. Returns scene metadata, cloud cover percentage, a thumbnail URL, and a full-resolution link.
+
+<Info>
+Rate limit: **30 requests per minute** per IP.
+</Info>
+
+## Caching
+
+Results are cached for **1 hour** keyed on a 0.02° grid (approximately 2 km). Repeated requests within the same grid cell return immediately from the cache.
+
+## Data source
+
+Imagery is retrieved from the [Microsoft Planetary Computer](https://planetarycomputer.microsoft.com/) STAC catalog (`sentinel-2-l2a` collection). The search window is the **last 30 days** with a cloud cover filter of less than 30%.
+
+## Query parameters
+
+<ParamField query="lat" type="number" required>
+  Latitude in decimal degrees (−90 to 90).
+</ParamField>
+
+<ParamField query="lng" type="number" required>
+  Longitude in decimal degrees (−180 to 180).
+</ParamField>
+
+## Response
+
+<ResponseField name="found" type="boolean" required>
+  `true` if a qualifying scene was found, `false` otherwise.
+</ResponseField>
+
+<ResponseField name="scene_id" type="string">
+  Unique STAC item ID for the scene. Present only when `found` is `true`.
+</ResponseField>
+
+<ResponseField name="datetime" type="string">
+  ISO 8601 capture timestamp of the scene.
+</ResponseField>
+
+<ResponseField name="cloud_cover" type="number">
+  Cloud cover percentage at time of capture (0–100).
+</ResponseField>
+
+<ResponseField name="thumbnail_url" type="string">
+  URL of the scene thumbnail. Suitable for display in a map popup.
+</ResponseField>
+
+<ResponseField name="fullres_url" type="string">
+  URL of the full-resolution rendered preview PNG. Opens in the browser or a GIS tool.
+</ResponseField>
+
+<ResponseField name="bbox" type="number[]">
+  Bounding box of the scene as `[west, south, east, north]`.
+</ResponseField>
+
+<ResponseField name="platform" type="string">
+  Satellite platform identifier (e.g. `"Sentinel-2A"` or `"Sentinel-2B"`).
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable reason when `found` is `false` (e.g. `"No clear scenes in last 30 days"`).
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error detail when the search failed due to a dependency or network issue.
+</ResponseField>
+
+## Example
+
+```bash
+curl "http://localhost:8000/api/sentinel2/search?lat=48.8566&lng=2.3522"
+```
+
+<ResponseExample>
+
+```json 200 — scene found
+{
+  "found": true,
+  "scene_id": "S2B_MSIL2A_20240112T104229_R008_T31UDQ_20240112T130142",
+  "datetime": "2024-01-12T10:42:29+00:00",
+  "cloud_cover": 4.7,
+  "thumbnail_url": "https://planetarycomputer.microsoft.com/api/data/v1/item/map?collection=sentinel-2-l2a&item=S2B_MSIL2A...",
+  "fullres_url": "https://sentinel2l2a01.blob.core.windows.net/sentinel2-l2a/31/U/DQ/.../TCI_10m.tif",
+  "bbox": [1.7, 48.5, 3.1, 49.4],
+  "platform": "Sentinel-2B"
+}
+```
+
+```json 200 — no scene
+{
+  "found": false,
+  "message": "No clear scenes in last 30 days"
+}
+```
+
+</ResponseExample>

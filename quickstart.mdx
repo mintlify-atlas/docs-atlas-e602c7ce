@@ -1,80 +1,194 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Deploy ShadowBroker and open the live intelligence dashboard in under 5 minutes using Docker or Podman.
 ---
 
-## Get started in three steps
+<Note>
+  ShadowBroker requires **Docker** or **Podman** with Compose support. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) or [Podman Desktop](https://podman-desktop.io/) before proceeding.
+</Note>
 
-Get your documentation site running locally and make your first customization.
+<Tabs>
+  <Tab title="Linux / macOS">
+    <Steps>
+      <Step title="Clone the repository">
+        Clone ShadowBroker to your local machine:
 
-### Step 1: Set up your local environment
+        ```bash
+        git clone https://github.com/BigBodyCobain/Shadowbroker.git
+        cd Shadowbroker
+        ```
+      </Step>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+      <Step title="Configure API keys (optional)">
+        Most layers work without any API keys. Maritime vessel tracking (AIS) requires a free key from [aisstream.io](https://aisstream.io).
 
-### Step 2: Deploy your changes
+        Copy the example environment file and add your keys:
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+        ```bash
+        cp .env.example .env
+        ```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+        Open `.env` and fill in your values:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+        ```bash .env
+        # Required for maritime vessel tracking
+        AIS_API_KEY=your_aisstream_key
 
-### Step 3: Go live
+        # Optional — higher rate limits for flight data
+        OPENSKY_CLIENT_ID=
+        OPENSKY_CLIENT_SECRET=
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+        # Optional — Singapore CCTV cameras
+        # LTA_ACCOUNT_KEY=
+        ```
 
-## Next steps
+        <Tip>
+          If you skip this step, ShadowBroker still works. Aviation, satellite, earthquake, geopolitics, and most other layers do not require API keys.
+        </Tip>
+      </Step>
 
-Now that you have your docs running, explore these key features:
+      <Step title="Start the containers">
+        Use the `compose.sh` helper script. It auto-detects `docker compose`, `docker-compose`, `podman compose`, and `podman-compose`:
+
+        ```bash
+        ./compose.sh up -d
+        ```
+
+        The first run builds both images locally. This takes 2–4 minutes depending on your connection speed.
+
+        <Tip>
+          If both Docker and Podman are installed and you want to force one engine, use the `--engine` flag:
+
+          ```bash
+          ./compose.sh --engine podman up -d
+          ```
+        </Tip>
+
+        The backend container passes a health check before the frontend starts. You can watch progress with:
+
+        ```bash
+        ./compose.sh logs -f
+        ```
+      </Step>
+
+      <Step title="Open the dashboard">
+        Once the frontend container is healthy, open your browser:
+
+        ```
+        http://localhost:3000
+        ```
+
+        You should see the ShadowBroker dark-ops map interface loading live data.
+      </Step>
+
+      <Step title="Enable or disable layers">
+        All data layers are independently toggleable from the **left panel** of the dashboard.
+
+        1. Click the panel icon on the left side of the screen to open the layer controls.
+        2. Toggle individual layers on or off. Some layers (such as CCTV Mesh and High-Res Satellite) are off by default to save bandwidth.
+        3. Layers marked **ON** by default include: commercial flights, military flights, satellites, maritime vessels, earthquakes, GPS jamming, Ukraine frontline, and global incidents.
+
+        <Tip>
+          Right-click anywhere on the map to open a **region intelligence dossier** — country profile, head of state, and a local Wikipedia summary with the latest Sentinel-2 satellite image for that location.
+        </Tip>
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Windows">
+    <Steps>
+      <Step title="Clone the repository">
+        Open a terminal (Command Prompt, PowerShell, or Windows Terminal) and run:
+
+        ```powershell
+        git clone https://github.com/BigBodyCobain/Shadowbroker.git
+        cd Shadowbroker
+        ```
+      </Step>
+
+      <Step title="Configure API keys (optional)">
+        Most layers work without any API keys. Maritime vessel tracking (AIS) requires a free key from [aisstream.io](https://aisstream.io).
+
+        Copy the example environment file:
+
+        ```powershell
+        copy .env.example .env
+        ```
+
+        Open `.env` in a text editor and fill in your values:
+
+        ```bash .env
+        # Required for maritime vessel tracking
+        AIS_API_KEY=your_aisstream_key
+
+        # Optional — higher rate limits for flight data
+        OPENSKY_CLIENT_ID=
+        OPENSKY_CLIENT_SECRET=
+        ```
+
+        <Tip>
+          If you skip this step, ShadowBroker still works. Aviation, satellite, earthquake, geopolitics, and most other layers do not require API keys.
+        </Tip>
+      </Step>
+
+      <Step title="Start the containers">
+        On Windows, use `docker-compose` directly (the `compose.sh` script requires Git Bash or WSL):
+
+        ```powershell
+        docker-compose up -d
+        ```
+
+        The first run builds both images locally. This takes 2–4 minutes depending on your connection speed.
+
+        <Warning>
+          Do not append a trailing `.` to the command. Docker Compose interprets it as a service name and the command will fail.
+        </Warning>
+
+        To watch startup progress:
+
+        ```powershell
+        docker-compose logs -f
+        ```
+      </Step>
+
+      <Step title="Open the dashboard">
+        Once the frontend container is healthy, open your browser:
+
+        ```
+        http://localhost:3000
+        ```
+
+        You should see the ShadowBroker dark-ops map interface loading live data.
+      </Step>
+
+      <Step title="Enable or disable layers">
+        All data layers are independently toggleable from the **left panel** of the dashboard.
+
+        1. Click the panel icon on the left side of the screen to open the layer controls.
+        2. Toggle individual layers on or off. Some layers (such as CCTV Mesh and High-Res Satellite) are off by default to save bandwidth.
+        3. Layers marked **ON** by default include: commercial flights, military flights, satellites, maritime vessels, earthquakes, GPS jamming, Ukraine frontline, and global incidents.
+
+        <Tip>
+          Right-click anywhere on the map to open a **region intelligence dossier** — country profile, head of state, and a local Wikipedia summary with the latest Sentinel-2 satellite image for that location.
+        </Tip>
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## What to do next
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Configuration" icon="gear" href="/configuration/environment-variables">
+    Set API keys and configure environment variables for enhanced data coverage.
+  </Card>
+  <Card title="Data layers" icon="layer-group" href="/layers/overview">
+    Full reference for all 20+ intelligence layers and their update frequencies.
+  </Card>
+  <Card title="Docker deployment" icon="docker" href="/deployment/docker">
+    Advanced deployment options including LAN access, custom backend URLs, and Portainer stacks.
+  </Card>
+  <Card title="Kubernetes / Helm" icon="dharmachakra" href="/deployment/kubernetes">
+    High-availability deployment with the included Helm chart for home-lab clusters.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

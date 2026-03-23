@@ -1,0 +1,95 @@
+---
+title: 'API overview'
+description: 'ShadowBroker REST API reference — base URL, authentication, rate limiting, caching, and all endpoints at a glance.'
+---
+
+The ShadowBroker backend exposes a JSON REST API served by FastAPI. All endpoints are available at:
+
+```
+http://localhost:8000
+```
+
+You can override this with the `BACKEND_URL` environment variable in the frontend.
+
+## Endpoints at a glance
+
+| Method | Path | Description | Rate limit |
+|--------|------|-------------|------------|
+| `GET` | `/api/live-data/fast` | Moving entities: flights, ships, satellites, UAVs, GPS jamming, CCTV | 120/min |
+| `GET` | `/api/live-data/slow` | Contextual data: news, earthquakes, weather, stocks, frontlines | 60/min |
+| `GET` | `/api/refresh` | Trigger a background data refresh | 2/min |
+| `GET` | `/api/health` | Service health check with per-source counts and uptime | 30/min |
+| `GET` | `/api/region-dossier` | Country profile + Wikipedia summary for a lat/lng point | 30/min |
+| `GET` | `/api/sentinel2/search` | Latest Sentinel-2 imagery scene for a lat/lng point | 30/min |
+| `GET` | `/api/route/{callsign}` | Flight origin and destination for an ICAO callsign | 60/min |
+| `GET` | `/api/radio/top` | Top Broadcastify live audio feeds | 30/min |
+| `GET` | `/api/radio/openmhz/systems` | All OpenMHz trunked radio systems | 30/min |
+| `GET` | `/api/radio/openmhz/calls/{sys_name}` | Recent calls for an OpenMHz system | 60/min |
+| `GET` | `/api/radio/nearest` | Nearest OpenMHz system to a lat/lng | 60/min |
+| `GET` | `/api/radio/nearest-list` | Up to 20 nearest OpenMHz systems | 60/min |
+| `POST` | `/api/ais/feed` | Ingest AIS-catcher decoded messages | 60/min |
+| `POST` | `/api/viewport` | Update map viewport bounds for AIS stream choking | 60/min |
+| `GET` | `/api/settings/api-keys` | List API key registry (admin) | 30/min |
+| `PUT` | `/api/settings/api-keys` | Update a single API key (admin) | 10/min |
+| `GET` | `/api/settings/news-feeds` | List configured RSS news feeds | 30/min |
+| `PUT` | `/api/settings/news-feeds` | Replace news feed list (admin) | 10/min |
+| `POST` | `/api/settings/news-feeds/reset` | Reset news feeds to defaults (admin) | 10/min |
+| `POST` | `/api/system/update` | Download and apply the latest release (admin) | 1/min |
+
+## Authentication
+
+Most endpoints are public. Endpoints marked **admin** above require an `X-Admin-Key` header.
+
+```bash
+curl -H "X-Admin-Key: your-secret-key" http://localhost:8000/api/settings/api-keys
+```
+
+Set your admin key with the `ADMIN_KEY` environment variable. If `ADMIN_KEY` is not set, all admin endpoints are unprotected — suitable for local development only.
+
+<Warning>
+Always set `ADMIN_KEY` in production. Leaving it unset exposes settings and system update endpoints to anyone with network access.
+</Warning>
+
+## Rate limiting
+
+Rate limiting is enforced per remote IP address using [slowapi](https://github.com/laurentS/slowapi). When a limit is exceeded the API returns `HTTP 429 Too Many Requests`.
+
+Limits are designed to match the refresh cadence of each data tier:
+
+- **120/min** — fast live data (matches the 60 s background refresh interval)
+- **60/min** — slow data and write endpoints
+- **30/min** — search and settings read endpoints
+- **10/min** — settings write endpoints
+- **2/min** — full data refresh trigger
+- **1/min** — self-update endpoint
+
+## ETag caching
+
+The `/api/live-data/fast` and `/api/live-data/slow` endpoints return an `ETag` header. Send the value back in an `If-None-Match` header on subsequent requests. If the data has not changed, the server returns `HTTP 304 Not Modified` with no body, saving bandwidth.
+
+```bash
+# First request — capture the ETag
+curl -i http://localhost:8000/api/live-data/fast
+# ETag: abc123def456
+
+# Subsequent request — use If-None-Match
+curl -i -H "If-None-Match: abc123def456" http://localhost:8000/api/live-data/fast
+# HTTP/1.1 304 Not Modified
+```
+
+## Gzip compression
+
+The server automatically compresses responses larger than 1,000 bytes with Gzip. Include `Accept-Encoding: gzip` in your request headers (most HTTP clients do this by default).
+
+## Response format
+
+All endpoints return JSON. Successful responses use `HTTP 200`. Errors follow standard HTTP status codes:
+
+| Status | Meaning |
+|--------|---------|
+| `200` | Success |
+| `304` | Not modified (ETag match) |
+| `400` | Bad request (validation error) |
+| `403` | Forbidden (invalid or missing `X-Admin-Key`) |
+| `429` | Rate limit exceeded |
+| `500` | Internal server error |

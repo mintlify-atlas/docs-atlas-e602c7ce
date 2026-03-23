@@ -1,0 +1,112 @@
+---
+title: "Portainer, NAS, and Uncloud"
+description: "Deploy ShadowBroker using pre-built container images — no repo clone required. Works with Portainer, Uncloud, and any Docker host."
+---
+
+ShadowBroker publishes pre-built images to the GitHub Container Registry on every release. You can deploy the full stack without cloning the repository — paste a single compose file into Portainer's stack editor, run `uncloud deploy`, or use any Docker host.
+
+## Images
+
+| Container | Image |
+|---|---|
+| Backend (FastAPI) | `ghcr.io/bigbodycobain/shadowbroker-backend:latest` |
+| Frontend (Next.js) | `ghcr.io/bigbodycobain/shadowbroker-frontend:latest` |
+
+## Compose file
+
+Create a stack using the following `docker-compose.yml`. No other files are needed.
+
+```yaml docker-compose.yml
+services:
+  backend:
+    image: ghcr.io/bigbodycobain/shadowbroker-backend:latest
+    container_name: shadowbroker-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - AIS_API_KEY=your_aisstream_key          # Required — get one free at aisstream.io
+      - OPENSKY_CLIENT_ID=                       # Optional — higher flight data rate limits
+      - OPENSKY_CLIENT_SECRET=                   # Optional — paired with Client ID above
+      - LTA_ACCOUNT_KEY=                         # Optional — Singapore CCTV cameras
+      - CORS_ORIGINS=                            # Optional — comma-separated allowed origins
+    volumes:
+      - backend_data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/bigbodycobain/shadowbroker-frontend:latest
+    container_name: shadowbroker-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://backend:8000   # Docker internal networking — no rebuild needed
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_data:
+```
+
+## Portainer deploy
+
+<Steps>
+  <Step title="Open Portainer and create a new stack">
+    In the Portainer sidebar, go to **Stacks** and click **Add stack**. Give it a name such as `shadowbroker`.
+  </Step>
+  <Step title="Paste the compose file">
+    Select the **Web editor** option and paste the full `docker-compose.yml` above into the editor.
+  </Step>
+  <Step title="Set environment variables">
+    Scroll to the **Environment variables** section and add:
+
+    | Variable | Required | Description |
+    |---|---|---|
+    | `AIS_API_KEY` | Yes | Maritime vessel tracking key from [aisstream.io](https://aisstream.io) |
+    | `OPENSKY_CLIENT_ID` | No | OpenSky OAuth2 client ID for higher flight data rate limits |
+    | `OPENSKY_CLIENT_SECRET` | No | OpenSky OAuth2 client secret, paired with the ID above |
+    | `LTA_ACCOUNT_KEY` | No | Singapore LTA key for Singapore CCTV cameras |
+    | `CORS_ORIGINS` | No | Comma-separated allowed origins (auto-detects LAN IPs if left empty) |
+    | `BACKEND_URL` | No | Defaults to `http://backend:8000`. Change only if your backend runs on a different host or port |
+
+    <Note>
+      You can also set variables directly in the compose file editor instead of the environment variables section — both approaches work in Portainer.
+    </Note>
+  </Step>
+  <Step title="Deploy the stack">
+    Click **Deploy the stack**. Portainer will pull both images from GHCR and start the containers.
+
+    The backend performs a health check against `/api/live-data/fast` before the frontend starts. First boot typically takes 30–90 seconds while data sources initialize.
+  </Step>
+  <Step title="Open the dashboard">
+    Navigate to `http://<your-host>:3000` to access the ShadowBroker dashboard.
+  </Step>
+</Steps>
+
+## How BACKEND_URL works
+
+The frontend container proxies all `/api/*` requests through the Next.js server to the URL specified in `BACKEND_URL`. Because both containers share Docker's internal network, the frontend can reach the backend by its container name (`backend`) without any additional configuration.
+
+- **Port 8000 does not need to be exposed externally.** The browser only ever talks to port 3000.
+- `BACKEND_URL` is a plain runtime environment variable, not a build-time `NEXT_PUBLIC_*` variable. You can update it in Portainer or any compose editor without rebuilding the image.
+- If your backend runs on a different host (for example, a separate machine on your LAN), set `BACKEND_URL=http://192.168.1.50:8000` or similar.
+
+## Persistent cache
+
+The `backend_data` named volume mounts to `/app/data` inside the backend container. ShadowBroker stores its on-disk caches here:
+
+- `carrier_cache.json` — OSINT-estimated carrier strike group positions
+- `geocode_cache.json` — geocoding results for reverse lookups
+- AIS feed cache and other runtime state
+
+This volume persists across container restarts and image updates. Do not delete it unless you want to reset all cached data.
+
+## Uncloud deploy
+
+Uncloud reads standard Docker Compose files. Save the compose file above as `docker-compose.yml` and run:
+
+```bash
+uncloud deploy
+```
+
+Set `BACKEND_URL` to the internal service address your Uncloud network assigns to the backend container, or leave it as `http://backend:8000` if the containers are in the same service group.

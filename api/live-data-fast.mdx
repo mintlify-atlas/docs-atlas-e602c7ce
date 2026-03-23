@@ -1,0 +1,150 @@
+---
+title: 'Live data (fast)'
+description: 'GET /api/live-data/fast — moving entities updated every 60 seconds: flights, ships, satellites, UAVs, CCTV, and GPS jamming.'
+---
+
+`GET /api/live-data/fast`
+
+Returns moving entities that are refreshed in the background every 60 seconds. Supports optional bounding-box filtering to reduce payload size for a specific map viewport.
+
+<Info>
+Rate limit: **120 requests per minute** per IP.
+</Info>
+
+## Query parameters
+
+<ParamField query="s" type="number">
+  South bound of the bounding box (latitude, −90 to 90). All four bbox parameters must be provided together for filtering to apply.
+</ParamField>
+
+<ParamField query="w" type="number">
+  West bound of the bounding box (longitude, −180 to 180).
+</ParamField>
+
+<ParamField query="n" type="number">
+  North bound of the bounding box (latitude, −90 to 90).
+</ParamField>
+
+<ParamField query="e" type="number">
+  East bound of the bounding box (longitude, −180 to 180).
+</ParamField>
+
+## Response
+
+<ResponseField name="commercial_flights" type="object[]">
+  Commercial airline flight state vectors. Filtered by bbox when provided.
+</ResponseField>
+
+<ResponseField name="military_flights" type="object[]">
+  Military aircraft state vectors.
+</ResponseField>
+
+<ResponseField name="private_flights" type="object[]">
+  General aviation / private aircraft state vectors.
+</ResponseField>
+
+<ResponseField name="private_jets" type="object[]">
+  Tracked private jet subset with enriched ownership data.
+</ResponseField>
+
+<ResponseField name="tracked_flights" type="object[]">
+  Small set of specifically tracked aircraft. Always returned in full (not bbox-filtered).
+</ResponseField>
+
+<ResponseField name="ships" type="object[]">
+  AIS vessel positions. Filtered by bbox when provided.
+</ResponseField>
+
+<ResponseField name="cctv" type="object[]">
+  Live CCTV camera locations (TfL, LTA Singapore, Austin TX, NYC DOT). Filtered by bbox.
+</ResponseField>
+
+<ResponseField name="uavs" type="object[]">
+  Detected UAV / drone positions.
+</ResponseField>
+
+<ResponseField name="liveuamap" type="object[]">
+  LiveUAMap conflict events. Filtered by bbox.
+</ResponseField>
+
+<ResponseField name="gps_jamming" type="object[]">
+  GPS jamming / spoofing detections. Filtered by bbox.
+</ResponseField>
+
+<ResponseField name="satellites" type="object[]">
+  Real-time satellite positions computed from NORAD TLEs (SGP4 propagation). Filtered by bbox.
+</ResponseField>
+
+<ResponseField name="satellite_source" type="string">
+  Source label for the satellite data (`"celestrak"`, `"spacetrack"`, or `"none"`).
+</ResponseField>
+
+<ResponseField name="freshness" type="object">
+  ISO 8601 timestamp for each data source indicating when it was last successfully fetched.
+</ResponseField>
+
+## ETag caching
+
+This endpoint returns an `ETag` header. The ETag incorporates both the payload hash and the bbox parameters, so a full-world request and a filtered request generate different ETags.
+
+Send `If-None-Match: <etag>` on subsequent requests. If the data has not changed, the server returns `HTTP 304 Not Modified` with no body.
+
+## Examples
+
+<CodeGroup>
+
+```bash Full world
+curl http://localhost:8000/api/live-data/fast
+```
+
+```bash With bounding box
+curl "http://localhost:8000/api/live-data/fast?s=48.0&w=2.0&n=49.5&e=3.5"
+```
+
+```bash With ETag caching
+# First request
+curl -i http://localhost:8000/api/live-data/fast
+# Captures: ETag: abc123def456
+
+# Subsequent request
+curl -i -H "If-None-Match: abc123def456" http://localhost:8000/api/live-data/fast
+# Returns 304 if data unchanged
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json 200
+{
+  "commercial_flights": [
+    {
+      "icao": "4B1A2C",
+      "callsign": "BAW123",
+      "lat": 51.47,
+      "lng": -0.46,
+      "altitude": 35000,
+      "speed": 480,
+      "heading": 270
+    }
+  ],
+  "military_flights": [],
+  "private_flights": [],
+  "private_jets": [],
+  "tracked_flights": [],
+  "ships": [],
+  "cctv": [],
+  "uavs": [],
+  "liveuamap": [],
+  "gps_jamming": [],
+  "satellites": [],
+  "satellite_source": "celestrak",
+  "freshness": {
+    "flights": "2024-01-15T12:00:00",
+    "ships": "2024-01-15T12:00:01",
+    "satellites": "2024-01-15T12:00:02"
+  }
+}
+```
+
+</ResponseExample>

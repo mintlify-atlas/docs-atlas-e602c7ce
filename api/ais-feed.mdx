@@ -1,0 +1,99 @@
+---
+title: 'AIS feed'
+description: 'POST /api/ais/feed — ingest decoded AIS messages from a local RTL-SDR or AIS-catcher receiver.'
+---
+
+`POST /api/ais/feed`
+
+Accepts a batch of decoded AIS messages in the AIS-catcher HTTP JSON format and ingests them into the live vessel tracking stream. Use this endpoint to contribute data from a local RTL-SDR receiver running [AIS-catcher](https://github.com/jvde-github/AIS-catcher).
+
+<Info>
+Rate limit: **60 requests per minute** per IP.
+</Info>
+
+## Use case
+
+AIS-catcher can POST decoded AIS messages to an HTTP endpoint in real time. Point it at `http://localhost:8000/api/ais/feed` and ShadowBroker will merge locally-received vessel positions into the live ship layer — useful for improving coverage in coastal areas not well-served by the upstream AIS WebSocket.
+
+## Request body
+
+<ParamField body="msgs" type="object[]" required>
+  Array of decoded AIS message objects in the AIS-catcher HTTP JSON format. Each object represents one decoded AIS sentence.
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string" required>
+  Always `"ok"` for a valid request.
+</ResponseField>
+
+<ResponseField name="ingested" type="number" required>
+  Number of AIS messages that were successfully ingested from the submitted batch.
+</ResponseField>
+
+## Example
+
+```bash
+curl -X POST http://localhost:8000/api/ais/feed \
+  -H "Content-Type: application/json" \
+  -d '{
+    "msgs": [
+      {
+        "class": "AIS",
+        "type": 1,
+        "mmsi": 123456789,
+        "lat": 51.5,
+        "lon": -0.12,
+        "speed": 5.2,
+        "heading": 270
+      }
+    ]
+  }'
+```
+
+<ResponseExample>
+
+```json 200
+{
+  "status": "ok",
+  "ingested": 1
+}
+```
+
+```json 200 — empty batch
+{
+  "status": "ok",
+  "ingested": 0
+}
+```
+
+```json 400 — invalid JSON
+{
+  "error": "invalid JSON"
+}
+```
+
+</ResponseExample>
+
+## AIS-catcher configuration
+
+To forward AIS-catcher output to ShadowBroker, add the following to your AIS-catcher command:
+
+```bash
+AIS-catcher -H http://localhost:8000/api/ais/feed RESPONSE off
+```
+
+Or in a config file:
+
+```json
+{
+  "config": {
+    "server": [
+      {
+        "url": "http://localhost:8000/api/ais/feed",
+        "response": false
+      }
+    ]
+  }
+}
+```

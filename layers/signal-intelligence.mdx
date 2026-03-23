@@ -1,0 +1,66 @@
+---
+title: "Signal intelligence"
+description: "GPS jamming zone detection via ADS-B NAC-P degradation analysis, grid-based severity mapping, and the Radio Intercept Panel scanner UI."
+---
+
+The signal intelligence features derive intelligence from secondary analysis of ADS-B transponder data and aggregate public radio scanner infrastructure.
+
+## GPS jamming detection
+
+The **GPS Jamming** layer detects active GPS interference zones by analyzing the **NAC-P** (Navigation Accuracy Category — Position) value broadcast by ADS-B-equipped aircraft.
+
+### What NAC-P measures
+
+NAC-P is a 4-bit field in the ADS-B message that indicates the estimated position accuracy of the aircraft's GPS receiver:
+
+| NAC-P value | Estimated accuracy |
+|---|---|
+| 11 | < 3 meters (HPL) |
+| 10 | < 10 meters |
+| 9 | < 30 meters |
+| 8 | < 0.05 NM (~93 m) |
+| 7 | < 0.1 NM |
+| 6 | < 0.3 NM |
+| 5 | < 0.5 NM |
+| 4 | < 1 NM |
+| 3 | < 2 NM |
+| 0–2 | > 2 NM or unknown |
+
+A healthy GPS receiver typically reports NAC-P 9–11. A receiver experiencing interference or jamming will report a degraded NAC-P of 7 or below.
+
+### Detection method
+
+1. Every ADS-B position report includes the aircraft's current NAC-P value.
+2. Aircraft positions are aggregated into a **geographic grid**. Each grid cell accumulates the NAC-P reports from all aircraft that have flown through it.
+3. Grid cells where a statistically significant proportion of aircraft report degraded NAC-P are flagged as jamming zones.
+4. The frontend renders flagged cells as **red overlay squares** with a label showing **GPS JAM XX%** — the percentage of aircraft in that cell reporting degraded accuracy.
+
+### Interpretation
+
+- A high severity % (e.g., `GPS JAM 85%`) indicates that most aircraft in that area are experiencing GPS degradation, consistent with active jamming or spoofing.
+- Jamming zones frequently appear near active conflict areas, sensitive military installations, and certain border regions.
+- Isolated low-severity cells may reflect individual aircraft GPS faults rather than environmental jamming.
+
+<Warning>
+  GPS jamming detection is derived from civilian ADS-B traffic density. Areas with very low aircraft traffic may show inconclusive results due to insufficient sample size.
+</Warning>
+
+### Update cadence
+
+Jamming analysis runs as part of the **fast-tier scheduler** every 60 seconds, using the same ADS-B dataset as the aviation layers.
+
+## Radio Intercept Panel
+
+The **Radio Intercept Panel** provides a scanner-style UI for monitoring communications. It is accessible from the right-side SIGINT panel.
+
+### Panel features
+
+- **KiwiSDR tuner** — click any KiwiSDR receiver on the map to open an embedded live SDR tuner for that node
+- **OpenMHz trunked radio** — automatically finds the nearest P25 trunked radio systems by distance from the current map center and streams recent audio bursts
+- **Broadcastify feeds** — shows the current Broadcastify Top 50 scanner feeds with listener counts and direct stream playback
+
+See the [SDR radio layer documentation](/layers/sdr-radio) for full details on each radio source and its data pipeline.
+
+<Tip>
+  Cross-reference active GPS jamming zones with KiwiSDR receiver locations. A KiwiSDR node inside a known jamming zone may exhibit degraded HF reception or unusual noise floor characteristics consistent with broadband interference.
+</Tip>

@@ -1,0 +1,276 @@
+---
+title: "Docker & Podman"
+description: "Deploy ShadowBroker using Docker Compose or Podman on Linux, macOS, and Windows."
+---
+
+ShadowBroker ships with a `docker-compose.yml` that builds both the backend and frontend images locally, and a `compose.sh` helper script that auto-detects your container runtime on Linux and macOS.
+
+## Prerequisites
+
+- **Docker** (with the Compose plugin) or **Podman** with a compatible compose provider
+- **Git** (to clone the repository)
+- An API key from [aisstream.io](https://aisstream.io) — required for live maritime vessel tracking
+
+## Quick start
+
+<Tabs>
+  <Tab title="Linux / macOS">
+    <Steps>
+      <Step title="Clone the repository">
+        ```bash
+        git clone https://github.com/BigBodyCobain/Shadowbroker.git
+        cd Shadowbroker
+        ```
+      </Step>
+
+      <Step title="Add your API keys">
+        Copy the example environment file and set your keys:
+
+        ```bash
+        cp .env.example .env
+        ```
+
+        Open `.env` and fill in your values:
+
+        ```env
+        # Required
+        AIS_API_KEY=your_aisstream_key
+
+        # Optional — higher rate limits for flight data
+        OPENSKY_CLIENT_ID=
+        OPENSKY_CLIENT_SECRET=
+
+        # Optional — Singapore CCTV cameras
+        LTA_ACCOUNT_KEY=
+        ```
+
+        <Warning>
+          `AIS_API_KEY` is required. Without it, live vessel tracking will not function. Get a free key at [aisstream.io](https://aisstream.io).
+        </Warning>
+      </Step>
+
+      <Step title="Start the containers">
+        Run the helper script, which auto-detects `docker compose`, `docker-compose`, `podman compose`, or `podman-compose`:
+
+        ```bash
+        ./compose.sh up -d
+        ```
+
+        The script defaults to `up -d` if no arguments are given.
+      </Step>
+
+      <Step title="Open the dashboard">
+        Once both containers are healthy, open [http://localhost:3000](http://localhost:3000) in your browser.
+
+        <Tip>
+          The frontend waits for the backend to pass its health check before starting. The backend may take up to 90 seconds on first boot.
+        </Tip>
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Windows">
+    <Steps>
+      <Step title="Clone the repository">
+        ```bash
+        git clone https://github.com/BigBodyCobain/Shadowbroker.git
+        cd Shadowbroker
+        ```
+      </Step>
+
+      <Step title="Add your API keys">
+        Create a `.env` file in the project root:
+
+        ```env
+        # Required
+        AIS_API_KEY=your_aisstream_key
+
+        # Optional — higher rate limits for flight data
+        OPENSKY_CLIENT_ID=
+        OPENSKY_CLIENT_SECRET=
+
+        # Optional — Singapore CCTV cameras
+        LTA_ACCOUNT_KEY=
+        ```
+      </Step>
+
+      <Step title="Start the containers">
+        Use `docker-compose` directly in Command Prompt or PowerShell:
+
+        ```bash
+        docker-compose up -d
+        ```
+
+        <Note>
+          On Windows, `compose.sh` requires Git Bash. If you have Git for Windows installed, right-click the project folder and select **Open Git Bash here**, then run `./compose.sh up -d`.
+        </Note>
+      </Step>
+
+      <Step title="Open the dashboard">
+        Open [http://localhost:3000](http://localhost:3000) in your browser.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Standalone deploy (Portainer, NAS, etc.)
+
+If you don't want to clone the repository, use the pre-built images published to the GitHub Container Registry. Paste this directly into Portainer's stack editor or any Docker host:
+
+```yaml docker-compose.yml
+services:
+  backend:
+    image: ghcr.io/bigbodycobain/shadowbroker-backend:latest
+    container_name: shadowbroker-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - AIS_API_KEY=your_aisstream_key          # Required — get one free at aisstream.io
+      - OPENSKY_CLIENT_ID=                       # Optional — higher flight data rate limits
+      - OPENSKY_CLIENT_SECRET=                   # Optional — paired with Client ID above
+      - LTA_ACCOUNT_KEY=                         # Optional — Singapore CCTV cameras
+      - CORS_ORIGINS=                            # Optional — comma-separated allowed origins
+    volumes:
+      - backend_data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/bigbodycobain/shadowbroker-frontend:latest
+    container_name: shadowbroker-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://backend:8000   # Docker internal networking — no rebuild needed
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_data:
+```
+
+<Note>
+  The frontend proxies all `/api/*` requests through the Next.js server to `BACKEND_URL` using Docker's internal networking. Browsers only ever talk to port 3000 — you do not need to expose port 8000 externally.
+</Note>
+
+## Environment variables
+
+### Backend
+
+| Variable | Required | Description |
+|---|---|---|
+| `AIS_API_KEY` | Yes | Maritime vessel tracking via [aisstream.io](https://aisstream.io) |
+| `OPENSKY_CLIENT_ID` | No | OAuth2 client ID for higher flight data rate limits |
+| `OPENSKY_CLIENT_SECRET` | No | OAuth2 secret, paired with `OPENSKY_CLIENT_ID` |
+| `LTA_ACCOUNT_KEY` | No | Singapore LTA CCTV cameras |
+| `CORS_ORIGINS` | No | Comma-separated list of allowed CORS origins. Auto-detects LAN IPs if empty. |
+
+### Frontend
+
+| Variable | Required | Description |
+|---|---|---|
+| `BACKEND_URL` | No | URL the Next.js server uses to proxy API calls to the backend. Defaults to `http://backend:8000`. Runtime variable — no image rebuild needed. |
+
+## BACKEND_URL configuration
+
+By default, `BACKEND_URL` is set to `http://backend:8000`, which uses Docker's internal container networking. Most deployments require no changes.
+
+If your backend runs on a different host or port, override `BACKEND_URL` at runtime:
+
+<CodeGroup>
+
+```bash Linux / macOS
+BACKEND_URL=http://myserver.com:9096 docker-compose up -d
+```
+
+```powershell Windows (PowerShell)
+$env:BACKEND_URL="http://myserver.com:9096"; docker-compose up -d
+```
+
+```bash Podman (via compose.sh)
+BACKEND_URL=http://192.168.1.50:9096 ./compose.sh up -d
+```
+
+```env .env file
+BACKEND_URL=http://myserver.com:9096
+```
+
+</CodeGroup>
+
+## Forcing Podman
+
+If both Docker and Podman are installed, `compose.sh` prefers Docker. To force Podman:
+
+```bash
+./compose.sh --engine podman up -d
+```
+
+You can also set the engine via an environment variable:
+
+```bash
+SHADOWBROKER_CONTAINER_ENGINE=podman ./compose.sh up -d
+```
+
+<Note>
+  `podman compose` may delegate to an external compose provider depending on your local Podman configuration. Do not append a trailing `.` to compose commands — Compose treats it as a service name.
+</Note>
+
+## Updating
+
+<Tabs>
+  <Tab title="Linux / macOS">
+    ```bash
+    git pull origin main
+    ./compose.sh down
+    ./compose.sh up --build -d
+    ```
+  </Tab>
+
+  <Tab title="Windows">
+    ```bash
+    git pull origin main
+    docker compose down
+    docker compose up --build -d
+    ```
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Dashboard still shows old data after updating">
+    Clear the Docker build cache and force a fresh image build:
+
+    ```bash
+    docker compose build --no-cache
+    ```
+  </Accordion>
+
+  <Accordion title="Remove stale images">
+    Prune unused images to free disk space and ensure the new image is used:
+
+    ```bash
+    docker image prune -f
+    ```
+  </Accordion>
+
+  <Accordion title="Check container logs">
+    Stream live logs from the backend container:
+
+    <CodeGroup>
+
+    ```bash compose.sh
+    ./compose.sh logs -f backend
+    ```
+
+    ```bash docker compose
+    docker compose logs -f backend
+    ```
+
+    </CodeGroup>
+  </Accordion>
+
+  <Accordion title="Backend fails health check on first boot">
+    The backend has a `start_period` of 90 seconds in its health check. This is normal — the FastAPI server installs Playwright and fetches initial data on startup. Wait for the health check to pass before the frontend starts routing traffic.
+  </Accordion>
+</AccordionGroup>
